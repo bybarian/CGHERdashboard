@@ -261,7 +261,10 @@ export default function TeacherView({
       '自選科': 'elective', '自選': 'elective',
       '災難醫學': 'disaster', '災難': 'disaster',
       '毒物科': 'toxicology', '毒物': 'toxicology',
-      '偏遠地區': 'remote', '偏鄉': 'remote'
+      '偏遠地區': 'remote', '偏鄉': 'remote',
+      '年休': 'annual-leave', '放假': 'annual-leave', '特休': 'annual-leave', '休假': 'annual-leave',
+      '尚未開始訓練': 'not-started', '尚未開始': 'not-started', '未開始': 'not-started',
+      '完訓': 'completed-training', '完成訓練': 'completed-training'
     };
 
     const nextSchedule = [...selectedScheduleStudent.schedule];

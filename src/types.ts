@@ -14,6 +14,7 @@ export interface Student {
   rotationRolled?: Record<number, boolean>;          // key: month index (1-12)
   homeworkRolled?: Record<string, boolean>;          // key: homeworkId
   avatar?: string;
+  currentOngoingMonth?: number;
 }
 
 export interface SubmissionStatus {
@@ -70,7 +71,7 @@ export const DEPARTMENTS: Record<string, Department> = {
     id: 'adult-er',
     name: '成人急診',
     fullName: '成人急診 (Adult ER)',
-    icon: 'Activity',
+    icon: 'User',
     description: '學習檢傷分類、基礎急症處置、內外科急症認定。開始練習看急救室 (R room) 病人及全區掌控 (Flow control)。',
     tasks: ['學習檢傷分類', '基礎急症處置', '內外科急症認定', '練習看急救室 (R room) 病人', '全區掌控 (Flow control)']
   },
@@ -94,7 +95,7 @@ export const DEPARTMENTS: Record<string, Department> = {
     id: 'obgyn',
     name: '婦產科',
     fullName: '婦產科 (OB/GYN)',
-    icon: 'HeartPulse',
+    icon: 'Venus',
     description: '跟診或會診訓練，學習內診、產急處置。',
     tasks: ['婦產科跟診與急照會診訓練', '學習陰道內診與鴨嘴鏡操作', '產科急症處置']
   },
@@ -134,7 +135,7 @@ export const DEPARTMENTS: Record<string, Department> = {
     id: 'icu',
     name: '重症醫學',
     fullName: '重症醫學 (ICU)',
-    icon: 'Heart',
+    icon: 'Activity',
     description: '內科加護病房，學習呼吸器設定、休克處置。累積滿衛福部要求之重症月數。',
     tasks: ['呼吸器參數設定與調整', '休克病人處力與強心劑使用', '多重器官衰竭與重症加護邏輯']
   },
@@ -142,7 +143,7 @@ export const DEPARTMENTS: Record<string, Department> = {
     id: 'echo',
     name: '超音波科',
     fullName: '超音波 (Ultrasound)',
-    icon: 'Waves',
+    icon: 'AudioLines',
     description: '包月訓練。至 GI room 或 2D echo室，大量累積 Logbook 案例。',
     tasks: ['累積 8 大類超音波案例各 10 例', '精熟心臟與外傷焦點式超音波 (FOCUS)', 'VS 簽章與病例回顧']
   },
@@ -158,7 +159,7 @@ export const DEPARTMENTS: Record<string, Department> = {
     id: 'disaster',
     name: '災難醫學',
     fullName: '災難醫學 (Disaster)',
-    icon: 'ShieldAlert',
+    icon: 'CloudLightning',
     description: '參與大型演習、指揮系統 (ICS)。具備特殊中毒與災難處理能力。',
     tasks: ['參與大型災難演習 (3場)', '理解事故指揮系統 (ICS)', '檢傷分類 (START) 實務']
   },
@@ -185,6 +186,30 @@ export const DEPARTMENTS: Record<string, Department> = {
     icon: 'Crown',
     description: '排班、處理行政客訴、安排教學活動、指導學弟妹。',
     tasks: ['急診排班與人力調配', '行政客訴與衝突危機處理', '安排學術晨會與教學活動']
+  },
+  'annual-leave': {
+    id: 'annual-leave',
+    name: '年休',
+    fullName: '年休 (Annual Leave)',
+    icon: 'Calendar',
+    description: '住院醫師年度特休假、年休假。',
+    tasks: ['完成休假期間職務代理交代', '妥善安排個人特休假規劃']
+  },
+  'not-started': {
+    id: 'not-started',
+    name: '尚未開始訓練',
+    fullName: '尚未開始訓練 (Not Started)',
+    icon: 'Clock',
+    description: '該月份尚未正式進入急診住院醫師常規輪訓階段。',
+    tasks: ['準備新科別報到事宜', '預先熟讀該科別訓練核心指標']
+  },
+  'completed-training': {
+    id: 'completed-training',
+    name: '完訓',
+    fullName: '完訓 (Completed Training)',
+    icon: 'Trophy',
+    description: '已順利完成全部急診住院醫師專業訓練，具備專科醫師報考資格。',
+    tasks: ['完成訓練證明書簽核與核章', '登錄醫學會專科醫師甄審系統']
   }
 };
 

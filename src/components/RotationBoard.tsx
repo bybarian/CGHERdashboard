@@ -24,7 +24,12 @@ import {
   Clock,
   ArrowUpRight,
   Upload,
-  ChevronRight
+  ChevronRight,
+  User,
+  Venus,
+  AudioLines,
+  CloudLightning,
+  Map
 } from 'lucide-react';
 import { Student, DEPARTMENTS, MONTH_NAMES } from '../types';
 
@@ -46,6 +51,13 @@ const getDeptIcon = (iconName: string) => {
     case 'Skull': return <Skull className="h-5 w-5" />;
     case 'Mountain': return <Mountain className="h-5 w-5" />;
     case 'Crown': return <Crown className="h-5 w-5" />;
+    case 'User': return <User className="h-5 w-5" />;
+    case 'Venus': return <Venus className="h-5 w-5" />;
+    case 'AudioLines': return <AudioLines className="h-5 w-5" />;
+    case 'CloudLightning': return <CloudLightning className="h-5 w-5" />;
+    case 'Calendar': return <Calendar className="h-5 w-5" />;
+    case 'Clock': return <Clock className="h-5 w-5" />;
+    case 'Trophy': return <Trophy className="h-5 w-5" />;
     default: return <Activity className="h-5 w-5" />;
   }
 };
@@ -63,17 +75,22 @@ interface RotationBoardProps {
     bonusXp: number,
     message: string
   ) => void;
+  onUpdateOngoingMonth?: (month: number) => void;
 }
 
-export default function RotationBoard({ student, onUpdateStatus, onMarkRolled }: RotationBoardProps) {
-  // Find first unfinished or pending month to set as default active month
-  let defaultActiveMonth = 1;
-  for (let m = 1; m <= 12; m++) {
-    if (!student.rotationStatus[m] || student.rotationStatus[m].status !== 'approved') {
-      defaultActiveMonth = m;
-      break;
+export default function RotationBoard({ student, onUpdateStatus, onMarkRolled, onUpdateOngoingMonth }: RotationBoardProps) {
+  // Find first unfinished or pending month to set as default active month, or use user override
+  let defaultActiveMonth = student.currentOngoingMonth || 0;
+  if (!defaultActiveMonth) {
+    defaultActiveMonth = 1;
+    for (let m = 1; m <= 12; m++) {
+      if (!student.rotationStatus[m] || student.rotationStatus[m].status !== 'approved') {
+        defaultActiveMonth = m;
+        break;
+      }
     }
   }
+  const currentMonthIndex = defaultActiveMonth;
 
   const [activeMonth, setActiveMonth] = useState<number>(defaultActiveMonth);
   const [notesInput, setNotesInput] = useState('');
@@ -185,15 +202,35 @@ export default function RotationBoard({ student, onUpdateStatus, onMarkRolled }:
     <div className="space-y-6">
       
       {/* Overview Card */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-base font-extrabold text-slate-900 flex items-center">
-            <Trophy className="h-5 w-5 text-teal-600 mr-2" />
+      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="space-y-1.5 max-w-2xl">
+          <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+            <Map className="h-5 w-5 text-teal-600" />
             急診 12 個月輪訓地圖
           </h2>
-          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+          <p className="text-xs text-slate-500 leading-relaxed">
             依據您的年度課表規律，點擊地圖中的任一月份科別。您可以在右側/下方查看該科別的核心訓練目標與重點任務，並在此上傳佐證資料申報學分。
           </p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2 text-[11px] font-semibold text-slate-600">
+            <div className="flex items-center space-x-1.5">
+              <span>📅 目前進行訓練月份：</span>
+              <select
+                value={currentMonthIndex}
+                onChange={(e) => onUpdateOngoingMonth?.(parseInt(e.target.value))}
+                className="text-xs font-black bg-teal-50 border border-teal-200 text-teal-800 rounded-md px-2 py-0.5 outline-none cursor-pointer focus:ring-1 focus:ring-teal-500"
+              >
+                {MONTH_NAMES.map((name, idx) => (
+                  <option key={idx + 1} value={idx + 1}>
+                    {name} (M{idx + 1})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center space-x-1.5 text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded">
+              <Clock className="h-3.5 w-3.5 text-slate-400" />
+              <span>系統時間：2026年7月5日</span>
+            </div>
+          </div>
         </div>
         
         {/* Approved counts */}
@@ -321,6 +358,8 @@ export default function RotationBoard({ student, onUpdateStatus, onMarkRolled }:
 
               if (isSelected) {
                 bgClass = 'bg-teal-600 text-white border-teal-700 ring-4 ring-teal-200 shadow-md';
+              } else if (layout.month === currentMonthIndex) {
+                bgClass += ' ring-2 ring-teal-500 shadow-[0_0_12px_rgba(20,184,166,0.35)] border-teal-500';
               }
 
               return (
@@ -330,13 +369,20 @@ export default function RotationBoard({ student, onUpdateStatus, onMarkRolled }:
                   className={`relative rounded-xl border p-2 flex flex-col justify-between items-center text-center transition-all cursor-pointer select-none ${gridRowClass} ${gridColClass} ${bgClass}`}
                 >
                   {/* Top: Month ID */}
-                  <span className={`text-[9px] font-black font-mono tracking-wider ${isSelected ? 'text-teal-200' : 'text-slate-400'}`}>
-                    M{layout.month}
-                  </span>
+                  <div className="flex items-center justify-between w-full">
+                    <span className={`text-[9px] font-black font-mono tracking-wider ${isSelected ? 'text-teal-200' : 'text-slate-400'}`}>
+                      M{layout.month}
+                    </span>
+                    {layout.month === currentMonthIndex && (
+                      <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded ${isSelected ? 'bg-teal-500 text-white' : 'bg-teal-600 text-white animate-pulse'}`}>
+                        目前進行
+                      </span>
+                    )}
+                  </div>
 
                   {/* Mid: Icon */}
                   <div className={`my-1 ${isSelected ? 'text-white scale-110' : 'text-teal-600'}`}>
-                    {getDeptIcon(currentDept?.icon || 'Activity')}
+                    {getDeptIcon(currentDept?.icon || 'User')}
                   </div>
 
                   {/* Bot: Dept Label */}

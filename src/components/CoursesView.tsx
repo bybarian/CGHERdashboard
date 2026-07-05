@@ -15,7 +15,8 @@ import {
   Ambulance, 
   Activity, 
   Heart,
-  Calendar
+  Calendar,
+  AlertCircle
 } from 'lucide-react';
 import { Student, Course, CourseCategory, COURSES } from '../types';
 
@@ -91,7 +92,7 @@ export default function CoursesView({ student, onUpdateStatus }: CoursesViewProp
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-base font-extrabold text-slate-900 flex items-center">
-              <Award className="h-5 w-5 text-indigo-600 mr-2" />
+              <AlertCircle className="h-5 w-5 text-indigo-600 mr-2" />
               急診醫學會專科必修學分與核心課程
             </h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -169,7 +170,7 @@ export default function CoursesView({ student, onUpdateStatus }: CoursesViewProp
       {/* Grid List of Courses */}
       {filteredCourses.length === 0 ? (
         <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
-          <Award className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+          <AlertCircle className="h-8 w-8 text-slate-300 mx-auto mb-2" />
           <p className="text-sm font-bold text-slate-600">無相符的學會必修項目</p>
           <p className="text-xs text-slate-400 mt-1">請嘗試修改搜尋關鍵字，或切換其他類別標籤。</p>
         </div>

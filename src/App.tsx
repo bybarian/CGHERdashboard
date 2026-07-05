@@ -15,7 +15,7 @@ import RotationBoard from './components/RotationBoard';
 import CoursesView from './components/CoursesView';
 import HomeworkView from './components/HomeworkView';
 import TeacherView from './components/TeacherView';
-import { Trophy, Award, Sparkles, CheckCircle2, Star, Activity, X, BookOpen, Crown } from 'lucide-react';
+import { Trophy, Award, Sparkles, CheckCircle2, Star, Activity, X, BookOpen, Crown, Monitor, Map, AlertCircle } from 'lucide-react';
 
 export default function App() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -33,6 +33,7 @@ export default function App() {
   // Custom courses and homework extensions
   const [customCourses, setCustomCourses] = useState<Course[]>([]);
   const [customHomeworks, setCustomHomeworks] = useState<Homework[]>([]);
+  const [logoError, setLogoError] = useState(false);
 
   // 1. Initial State Load
   useEffect(() => {
@@ -223,6 +224,15 @@ export default function App() {
       return updatedStudent;
     });
 
+    saveStudents(updatedStudents);
+  };
+
+  const handleUpdateOngoingMonth = (month: number) => {
+    if (!currentStudentId) return;
+    const updatedStudents = students.map((s) => {
+      if (s.id !== currentStudentId) return s;
+      return { ...s, currentOngoingMonth: month };
+    });
     saveStudents(updatedStudents);
   };
 
@@ -510,8 +520,18 @@ export default function App() {
 
             {/* Logo/Branding */}
             <div className="mt-4 flex items-center space-x-3 border-b border-white/10 pb-5">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md">
-                <Activity className="h-5 w-5 animate-pulse" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md overflow-hidden">
+                {!logoError ? (
+                  <img 
+                    src="/logo.png" 
+                    alt="Logo" 
+                    referrerPolicy="no-referrer"
+                    onError={() => setLogoError(true)}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <Activity className="h-5 w-5 animate-pulse" />
+                )}
               </div>
               <div>
                 <span className="block text-[10px] font-black tracking-wider text-teal-400">國泰綜合醫院急診部</span>
@@ -577,7 +597,7 @@ export default function App() {
                         : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
                     }`}
                   >
-                    <Activity className="h-4 w-4" />
+                    <Monitor className="h-4 w-4" />
                     <span>學習主儀表板</span>
                   </button>
 
@@ -592,7 +612,7 @@ export default function App() {
                         : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
                     }`}
                   >
-                    <Trophy className="h-4 w-4" />
+                    <Map className="h-4 w-4" />
                     <span>12 個月輪訓地圖</span>
                   </button>
 
@@ -607,7 +627,7 @@ export default function App() {
                         : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
                     }`}
                   >
-                    <Award className="h-4 w-4" />
+                    <AlertCircle className="h-4 w-4" />
                     <span>學會必修課程</span>
                   </button>
 
@@ -663,6 +683,7 @@ export default function App() {
                 <DashboardView 
                   student={currentStudent} 
                   onTabChange={setActiveTab} 
+                  onUpdateOngoingMonth={handleUpdateOngoingMonth}
                 />
               )}
 
@@ -671,6 +692,7 @@ export default function App() {
                   student={currentStudent} 
                   onUpdateStatus={handleUpdateStatus} 
                   onMarkRolled={handleMarkRolled}
+                  onUpdateOngoingMonth={handleUpdateOngoingMonth}
                 />
               )}
 

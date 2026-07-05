@@ -11,9 +11,56 @@ import {
   AlertCircle,
   TrendingUp,
   Sparkles,
-  CheckSquare
+  CheckSquare,
+  Activity,
+  Brain,
+  Baby,
+  HeartPulse,
+  Eye,
+  Ear,
+  Ambulance,
+  Smile,
+  Heart,
+  Waves,
+  Skull,
+  Mountain,
+  Crown,
+  User,
+  Venus,
+  AudioLines,
+  CloudLightning,
+  ShieldAlert
 } from 'lucide-react';
 import { Student, Homework, DEFAULT_HOMEWORKS, MONTH_NAMES, MONTHLY_CHECKLISTS, DEPARTMENTS } from '../types';
+
+const getDeptIcon = (iconName: string) => {
+  const className = "h-5 w-5";
+  switch (iconName) {
+    case 'Activity': return <Activity className={className} />;
+    case 'Brain': return <Brain className={className} />;
+    case 'Baby': return <Baby className={className} />;
+    case 'HeartPulse': return <HeartPulse className={className} />;
+    case 'Eye': return <Eye className={className} />;
+    case 'Ear': return <Ear className={className} />;
+    case 'Ambulance': return <Ambulance className={className} />;
+    case 'Smile': return <Smile className={className} />;
+    case 'Heart': return <Heart className={className} />;
+    case 'Waves': return <Waves className={className} />;
+    case 'Sparkles': return <Sparkles className={className} />;
+    case 'ShieldAlert': return <ShieldAlert className={className} />;
+    case 'Skull': return <Skull className={className} />;
+    case 'Mountain': return <Mountain className={className} />;
+    case 'Crown': return <Crown className={className} />;
+    case 'User': return <User className={className} />;
+    case 'Venus': return <Venus className={className} />;
+    case 'AudioLines': return <AudioLines className={className} />;
+    case 'CloudLightning': return <CloudLightning className={className} />;
+    case 'Calendar': return <Calendar className={className} />;
+    case 'Clock': return <Clock className={className} />;
+    case 'Trophy': return <Trophy className={className} />;
+    default: return <Activity className={className} />;
+  }
+};
 
 interface HomeworkViewProps {
   student: Student;
@@ -379,8 +426,8 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
                   </span>
 
                   {/* Mid: Icon */}
-                  <div className={`my-1 ${isSelected ? 'text-white scale-110' : hasWrittenHw ? 'text-rose-600' : 'text-emerald-600'}`}>
-                    {hasWrittenHw ? <FileText className="h-5 w-5" /> : <CheckSquare className="h-5 w-5" />}
+                  <div className={`my-1 ${isSelected ? 'text-white scale-110' : 'text-rose-600'}`}>
+                    {getDeptIcon(currentDept?.icon || 'User')}
                   </div>
 
                   {/* Bot: Mini Label */}

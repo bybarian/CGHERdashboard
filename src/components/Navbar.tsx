@@ -12,7 +12,10 @@ import {
   BookOpen,
   Calendar,
   CheckSquare,
-  Menu
+  Menu,
+  Monitor,
+  Map,
+  AlertCircle
 } from 'lucide-react';
 import { Student, RLevel } from '../types';
 
@@ -43,6 +46,7 @@ export default function Navbar({
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState(false);
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
   const selectedStudent = students.find(s => s.id === currentStudentId);
 
@@ -77,8 +81,18 @@ export default function Navbar({
               <Menu className="h-5 w-5" />
             </button>
           )}
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md shadow-teal-100">
-            <Activity className="h-5 w-5 animate-pulse" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md shadow-teal-100 overflow-hidden">
+            {!logoError ? (
+              <img 
+                src="/logo.png" 
+                alt="Logo" 
+                referrerPolicy="no-referrer"
+                onError={() => setLogoError(true)}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <Activity className="h-5 w-5 animate-pulse" />
+            )}
           </div>
           <div>
             <span className="block text-xs font-semibold tracking-wider text-teal-600 font-display">國泰綜合醫院急診醫學部電子輔助訓練系統</span>
@@ -220,7 +234,7 @@ export default function Navbar({
                     : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
                 }`}
               >
-                <Activity className="h-4 w-4" />
+                <Monitor className="h-4 w-4" />
                 <span>學習主儀表板</span>
               </button>
 
@@ -233,7 +247,7 @@ export default function Navbar({
                     : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
                 }`}
               >
-                <Trophy className="h-4 w-4" />
+                <Map className="h-4 w-4" />
                 <span>輪訓地圖</span>
               </button>
 
@@ -246,7 +260,7 @@ export default function Navbar({
                     : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
                 }`}
               >
-                <Award className="h-4 w-4" />
+                <AlertCircle className="h-4 w-4" />
                 <span>學會必修課程</span>
               </button>
 

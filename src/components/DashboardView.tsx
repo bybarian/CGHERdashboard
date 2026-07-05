@@ -13,23 +13,74 @@ import {
   FileText,
   User,
   ShieldAlert,
-  ArrowUpRight
+  ArrowUpRight,
+  Brain,
+  Baby,
+  HeartPulse,
+  Eye,
+  Ear,
+  Ambulance,
+  Smile,
+  Heart,
+  Waves,
+  Sparkles,
+  Skull,
+  Mountain,
+  Crown,
+  Venus,
+  AudioLines,
+  CloudLightning,
+  Clock,
+  Trophy
 } from 'lucide-react';
 import { Student, Course, Homework, DEPARTMENTS, COURSES, MONTH_NAMES } from '../types';
+
+const renderDeptIcon = (iconName: string) => {
+  const props = { className: "h-8 w-8 text-teal-600" };
+  switch (iconName) {
+    case 'Activity': return <Activity {...props} />;
+    case 'Brain': return <Brain {...props} />;
+    case 'Baby': return <Baby {...props} />;
+    case 'HeartPulse': return <HeartPulse {...props} />;
+    case 'Eye': return <Eye {...props} />;
+    case 'Ear': return <Ear {...props} />;
+    case 'Ambulance': return <Ambulance {...props} />;
+    case 'Smile': return <Smile {...props} />;
+    case 'Heart': return <Heart {...props} />;
+    case 'Waves': return <Waves {...props} />;
+    case 'Sparkles': return <Sparkles {...props} />;
+    case 'ShieldAlert': return <ShieldAlert {...props} />;
+    case 'Skull': return <Skull {...props} />;
+    case 'Mountain': return <Mountain {...props} />;
+    case 'Crown': return <Crown {...props} />;
+    case 'User': return <User {...props} />;
+    case 'Venus': return <Venus {...props} />;
+    case 'AudioLines': return <AudioLines {...props} />;
+    case 'CloudLightning': return <CloudLightning {...props} />;
+    case 'Calendar': return <Calendar {...props} />;
+    case 'Clock': return <Clock {...props} />;
+    case 'Trophy': return <Trophy {...props} />;
+    default: return <Activity {...props} />;
+  }
+};
 
 interface DashboardViewProps {
   student: Student;
   onTabChange: (tab: string) => void;
+  onUpdateOngoingMonth?: (month: number) => void;
 }
 
-export default function DashboardView({ student, onTabChange }: DashboardViewProps) {
+export default function DashboardView({ student, onTabChange, onUpdateOngoingMonth }: DashboardViewProps) {
   // Determine current active month based on unfinished schedules
-  // Find first month index (1-12) that is not approved
-  let currentMonthIndex = 6; // Default to June for simulation
-  for (let m = 1; m <= 12; m++) {
-    if (!student.rotationStatus[m] || student.rotationStatus[m].status !== 'approved') {
-      currentMonthIndex = m;
-      break;
+  // Find first month index (1-12) that is not approved, or use currentOngoingMonth if set by user
+  let currentMonthIndex = student.currentOngoingMonth || 0;
+  if (!currentMonthIndex) {
+    currentMonthIndex = 1;
+    for (let m = 1; m <= 12; m++) {
+      if (!student.rotationStatus[m] || student.rotationStatus[m].status !== 'approved') {
+        currentMonthIndex = m;
+        break;
+      }
     }
   }
 
@@ -465,24 +516,46 @@ export default function DashboardView({ student, onTabChange }: DashboardViewPro
           
           {/* Active Rotation Cell */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-              <div className="flex items-center space-x-2">
-                <Calendar className="h-5 w-5 text-teal-600" />
-                <h3 className="text-sm font-extrabold text-slate-800">
-                  當月輪訓科別：{MONTH_NAMES[currentMonthIndex - 1]}
-                </h3>
+            <div className="border-b border-slate-100 pb-3 mb-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-5 w-5 text-teal-600" />
+                  <h3 className="text-sm font-extrabold text-slate-800">
+                    目前進行訓練月份：
+                  </h3>
+                  <select
+                    value={currentMonthIndex}
+                    onChange={(e) => onUpdateOngoingMonth?.(parseInt(e.target.value))}
+                    className="text-xs font-black bg-teal-50 border border-teal-200 text-teal-800 rounded-md px-2.5 py-1 outline-none cursor-pointer focus:ring-1 focus:ring-teal-500 transition-all hover:bg-teal-100"
+                  >
+                    {MONTH_NAMES.map((name, idx) => (
+                      <option key={idx + 1} value={idx + 1}>
+                        {name} (M{idx + 1})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="flex items-center space-x-2 text-[11px] font-semibold text-slate-500 bg-slate-100/80 px-2.5 py-1 rounded-lg self-start sm:self-auto">
+                  <Clock className="h-3.5 w-3.5 text-slate-400" />
+                  <span>系統時間：2026年7月5日</span>
+                </div>
               </div>
-              <button 
-                onClick={() => onTabChange('monopoly')}
-                className="flex items-center text-xs font-bold text-teal-600 hover:text-teal-700 cursor-pointer"
-              >
-                進入輪訓地圖 <ChevronRight className="h-4 w-4" />
-              </button>
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[10px] text-slate-400 font-bold">
+                <span>💡 預設為首個未核准科別 (M{currentMonthIndex})，您可使用選單任意變更目前進行中的月份以供模擬與申報。</span>
+                <button 
+                  onClick={() => onTabChange('monopoly')}
+                  className="flex items-center text-xs font-bold text-teal-600 hover:text-teal-700 cursor-pointer"
+                >
+                  進入輪訓地圖 <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-5">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-teal-50 border border-teal-100 text-teal-600 shadow-sm">
-                <Activity className="h-8 w-8" />
+                {renderDeptIcon(currentDept.icon)}
               </div>
               
               <div className="space-y-2 flex-1">
