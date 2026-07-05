@@ -1,0 +1,6 @@
+{
+  "name": "急診住院醫師電子輔助訓練系統",
+  "description": "提供急診醫學會CBME精神之住院醫師輪訓大富翁、必修學會課程、每月作業追蹤與雙向教師審核回饋系統（支援112-115必修提醒、XP遊戲化升級）",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
