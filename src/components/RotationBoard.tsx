@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Activity, 
   Brain, 
@@ -75,24 +75,20 @@ interface RotationBoardProps {
     bonusXp: number,
     message: string
   ) => void;
-  onUpdateOngoingMonth?: (month: number) => void;
+  systemOngoingMonth: number;
+  systemDateText: string;
 }
 
-export default function RotationBoard({ student, onUpdateStatus, onMarkRolled, onUpdateOngoingMonth }: RotationBoardProps) {
-  // Find first unfinished or pending month to set as default active month, or use user override
-  let defaultActiveMonth = student.currentOngoingMonth || 0;
-  if (!defaultActiveMonth) {
-    defaultActiveMonth = 1;
-    for (let m = 1; m <= 12; m++) {
-      if (!student.rotationStatus[m] || student.rotationStatus[m].status !== 'approved') {
-        defaultActiveMonth = m;
-        break;
-      }
-    }
-  }
-  const currentMonthIndex = defaultActiveMonth;
+export default function RotationBoard({ student, onUpdateStatus, onMarkRolled, systemOngoingMonth, systemDateText }: RotationBoardProps) {
+  const currentMonthIndex = systemOngoingMonth;
+  const defaultActiveMonth = systemOngoingMonth;
 
   const [activeMonth, setActiveMonth] = useState<number>(defaultActiveMonth);
+
+  // Synchronize activeMonth with systemOngoingMonth when it changes
+  useEffect(() => {
+    setActiveMonth(systemOngoingMonth);
+  }, [systemOngoingMonth]);
   const [notesInput, setNotesInput] = useState('');
   const [fileNameInput, setFileNameInput] = useState('');
   const [dragActive, setDragActive] = useState(false);
@@ -214,21 +210,23 @@ export default function RotationBoard({ student, onUpdateStatus, onMarkRolled, o
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2 text-[11px] font-semibold text-slate-600">
             <div className="flex items-center space-x-1.5">
               <span>📅 目前進行訓練月份：</span>
-              <select
-                value={currentMonthIndex}
-                onChange={(e) => onUpdateOngoingMonth?.(parseInt(e.target.value))}
-                className="text-xs font-black bg-teal-50 border border-teal-200 text-teal-800 rounded-md px-2 py-0.5 outline-none cursor-pointer focus:ring-1 focus:ring-teal-500"
-              >
-                {MONTH_NAMES.map((name, idx) => (
-                  <option key={idx + 1} value={idx + 1}>
-                    {name} (M{idx + 1})
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center space-x-1 bg-teal-50 border border-teal-200 text-teal-800 rounded-md px-2 py-0.5 text-xs font-black">
+                <span>{MONTH_NAMES[currentMonthIndex - 1]} (M{currentMonthIndex})</span>
+                <span className="text-[8px] bg-teal-600 text-white font-extrabold px-1 py-0.25 rounded-md flex items-center">
+                  🔒 後台
+                </span>
+              </div>
             </div>
             <div className="flex items-center space-x-1.5 text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded">
               <Clock className="h-3.5 w-3.5 text-slate-400" />
-              <span>系統時間：2026年7月5日</span>
+              <span>系統時間：{(() => {
+                if (!systemDateText) return '2026年7月5日';
+                const parts = systemDateText.split('-');
+                if (parts.length === 3) {
+                  return `${parts[0]}年${parseInt(parts[1], 10)}月${parseInt(parts[2], 10)}日`;
+                }
+                return systemDateText;
+              })()}</span>
             </div>
           </div>
         </div>

@@ -8,6 +8,7 @@ export interface Student {
   xp: number;
   level: number;
   schedule: string[]; // 12 elements (Jan-Dec), containing department IDs
+  fourYearSchedules?: Record<RLevel, string[]>; // Personalized 4-year schedules (R1, R2, R3, R4)
   rotationStatus: Record<number, SubmissionStatus>; // key: month index (1-12)
   courseStatus: Record<string, SubmissionStatus>;   // key: courseId
   homeworkStatus: Record<string, SubmissionStatus>; // key: homeworkId

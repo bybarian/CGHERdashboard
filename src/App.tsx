@@ -16,6 +16,16 @@ import CoursesView from './components/CoursesView';
 import HomeworkView from './components/HomeworkView';
 import TeacherView from './components/TeacherView';
 import { Trophy, Award, Sparkles, CheckCircle2, Star, Activity, X, BookOpen, Crown, Monitor, Map, AlertCircle } from 'lucide-react';
+import { 
+  collection, 
+  doc, 
+  onSnapshot, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  writeBatch 
+} from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from './firebase';
 
 export default function App() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -35,50 +45,184 @@ export default function App() {
   const [customHomeworks, setCustomHomeworks] = useState<Homework[]>([]);
   const [logoError, setLogoError] = useState(false);
 
-  // 1. Initial State Load
-  useEffect(() => {
-    const savedStudents = localStorage.getItem('em_residents_students');
-    if (savedStudents) {
-      try {
-        const parsed = JSON.parse(savedStudents);
-        setStudents(parsed);
-        if (parsed.length > 0) {
-          setCurrentStudentId(parsed[0].id);
-        }
-      } catch (e) {
-        setStudents(PRELOADED_STUDENTS);
-        setCurrentStudentId(PRELOADED_STUDENTS[0].id);
-      }
-    } else {
-      setStudents(PRELOADED_STUDENTS);
-      setCurrentStudentId(PRELOADED_STUDENTS[0].id);
-    }
+  // NEW STATES: System Ongoing Month & R1-R4 Templates
+  const [systemOngoingMonth, setSystemOngoingMonth] = useState<number>(7);
+  const [systemDateText, setSystemDateText] = useState<string>('2026-07-05');
+  const [rLevelTemplates, setRLevelTemplates] = useState<Record<RLevel, string[]>>({
+    R1: ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
+    R2: ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+    R3: ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+    R4: ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er']
+  });
 
+  const handleUpdateSystemTime = async (month: number, dateText: string) => {
+    try {
+      await setDoc(doc(db, 'config', 'system'), {
+        systemOngoingMonth: month,
+        systemDateText: dateText
+      }, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'config/system');
+    }
+  };
+
+  const handleUpdateRLevelTemplates = async (templates: Record<RLevel, string[]>) => {
+    try {
+      await setDoc(doc(db, 'config', 'system'), {
+        rLevelTemplates: templates
+      }, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'config/system');
+    }
+  };
+
+  const handleApplyRLevelTemplateToAll = async (rLevel: RLevel) => {
+    const template = rLevelTemplates[rLevel];
+    if (!template) return;
+    try {
+      const batch = writeBatch(db);
+      students.forEach((s) => {
+        if (s.rLevel === rLevel) {
+          batch.update(doc(db, 'students', s.id), { schedule: [...template] });
+        }
+      });
+      await batch.commit();
+
+      setXpBannerText(`已將 ${rLevel} 預設範本成功套用至所有該年級住院醫師！`);
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 4000);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students');
+    }
+  };
+
+  const ensureFourYearSchedules = (list: Student[]): Student[] => {
+    return list.map((s) => {
+      if (!s.fourYearSchedules) {
+        return {
+          ...s,
+          fourYearSchedules: {
+            R1: s.rLevel === 'R1' ? [...s.schedule] : ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
+            R2: s.rLevel === 'R2' ? [...s.schedule] : ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+            R3: s.rLevel === 'R3' ? [...s.schedule] : ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+            R4: s.rLevel === 'R4' ? [...s.schedule] : ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+          }
+        };
+      }
+      return s;
+    });
+  };
+
+  // 1. Initial State Load & Real-time Snapshot Synchronization
+  useEffect(() => {
+    // A. Subscribe to Students
+    const unsubscribeStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
+      if (snapshot.empty) {
+        // Populate Firestore with default student list with 4-year schedules initialized
+        const defaultList = ensureFourYearSchedules(PRELOADED_STUDENTS);
+        defaultList.forEach(async (student) => {
+          try {
+            await setDoc(doc(db, 'students', student.id), student);
+          } catch (e) {
+            handleFirestoreError(e, OperationType.WRITE, `students/${student.id}`);
+          }
+        });
+      } else {
+        const list = snapshot.docs.map(doc => doc.data() as Student);
+        const parsed = ensureFourYearSchedules(list);
+        parsed.sort((a, b) => a.id.localeCompare(b.id));
+        setStudents(parsed);
+
+        // Retain or select active student
+        setCurrentStudentId(prev => {
+          if (prev && parsed.some(s => s.id === prev)) {
+            return prev;
+          }
+          const savedId = localStorage.getItem('em_residents_current_student_id');
+          if (savedId && parsed.some(s => s.id === savedId)) {
+            return savedId;
+          }
+          return parsed.length > 0 ? parsed[0].id : '';
+        });
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'students');
+    });
+
+    // B. Subscribe to Global Configuration document
+    const unsubscribeConfig = onSnapshot(doc(db, 'config', 'system'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.systemOngoingMonth !== undefined) {
+          setSystemOngoingMonth(data.systemOngoingMonth);
+        }
+        if (data.systemDateText !== undefined) {
+          setSystemDateText(data.systemDateText);
+        }
+        if (data.rLevelTemplates !== undefined) {
+          setRLevelTemplates(data.rLevelTemplates);
+        }
+      } else {
+        // Initialize default system config in Firestore
+        try {
+          setDoc(doc(db, 'config', 'system'), {
+            systemOngoingMonth: 7,
+            systemDateText: '2026-07-05',
+            rLevelTemplates: {
+              R1: ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
+              R2: ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+              R3: ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+              R4: ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er']
+            }
+          });
+        } catch (e) {
+          handleFirestoreError(e, OperationType.WRITE, 'config/system');
+        }
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'config/system');
+    });
+
+    // C. Subscribe to Custom Courses
+    const unsubscribeCourses = onSnapshot(collection(db, 'custom_courses'), (snapshot) => {
+      const list = snapshot.docs.map(doc => doc.data() as Course);
+      setCustomCourses(list);
+      list.forEach(course => {
+        if (!COURSES.some(c => c.id === course.id)) {
+          COURSES.push(course);
+        }
+      });
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'custom_courses');
+    });
+
+    // D. Subscribe to Custom Homeworks
+    const unsubscribeHomeworks = onSnapshot(collection(db, 'custom_homeworks'), (snapshot) => {
+      const list = snapshot.docs.map(doc => doc.data() as Homework);
+      setCustomHomeworks(list);
+      list.forEach(hw => {
+        if (!DEFAULT_HOMEWORKS.some(h => h.id === hw.id)) {
+          DEFAULT_HOMEWORKS.push(hw);
+        }
+      });
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'custom_homeworks');
+    });
+
+    // E. Keep teacher view state in localStorage (user specific)
     const savedTeacher = localStorage.getItem('em_residents_isteacher');
     if (savedTeacher === 'true') {
       setIsTeacher(true);
     }
 
-    // Load custom course list or homeworks if saved
-    const savedCourses = localStorage.getItem('em_residents_custom_courses');
-    if (savedCourses) {
-      try {
-        setCustomCourses(JSON.parse(savedCourses));
-      } catch (e) {}
-    }
-    const savedHws = localStorage.getItem('em_residents_custom_hws');
-    if (savedHws) {
-      try {
-        setCustomHomeworks(JSON.parse(savedHws));
-      } catch (e) {}
-    }
+    return () => {
+      unsubscribeStudents();
+      unsubscribeConfig();
+      unsubscribeCourses();
+      unsubscribeHomeworks();
+    };
   }, []);
 
-  // 2. Persist state changes
-  const saveStudents = (updated: Student[]) => {
-    setStudents(updated);
-    localStorage.setItem('em_residents_students', JSON.stringify(updated));
-  };
 
   const currentStudent = students.find(s => s.id === currentStudentId);
 
@@ -105,7 +249,7 @@ export default function App() {
   };
 
   // Student action: Submit elements
-  const handleUpdateStatus = (
+  const handleUpdateStatus = async (
     type: 'rotation' | 'course' | 'homework',
     itemId: string,
     submission: { notes: string; fileName: string; fileUrl: string }
@@ -113,64 +257,42 @@ export default function App() {
     if (!currentStudentId) return;
 
     const todayStr = new Date().toISOString().split('T')[0];
+    const student = students.find(s => s.id === currentStudentId);
+    if (!student) return;
 
-    const updatedStudents = students.map((s) => {
-      if (s.id !== currentStudentId) return s;
+    try {
+      const newSubmission = {
+        completed: true,
+        notes: submission.notes,
+        fileName: submission.fileName,
+        fileUrl: submission.fileUrl,
+        status: 'pending',
+        submittedAt: todayStr
+      };
 
-      const updatedStudent = { ...s };
-
+      const updateField: any = {};
       if (type === 'rotation') {
         const mKey = parseInt(itemId);
-        updatedStudent.rotationStatus = {
-          ...updatedStudent.rotationStatus,
-          [mKey]: {
-            completed: true,
-            notes: submission.notes,
-            fileName: submission.fileName,
-            fileUrl: submission.fileUrl,
-            status: 'pending',
-            submittedAt: todayStr
-          }
-        };
+        updateField[`rotationStatus.${mKey}`] = newSubmission;
       } else if (type === 'course') {
-        updatedStudent.courseStatus = {
-          ...updatedStudent.courseStatus,
-          [itemId]: {
-            completed: true,
-            notes: submission.notes,
-            fileName: submission.fileName,
-            fileUrl: submission.fileUrl,
-            status: 'pending',
-            submittedAt: todayStr
-          }
-        };
+        updateField[`courseStatus.${itemId}`] = newSubmission;
       } else if (type === 'homework') {
-        updatedStudent.homeworkStatus = {
-          ...updatedStudent.homeworkStatus,
-          [itemId]: {
-            completed: true,
-            notes: submission.notes,
-            fileName: submission.fileName,
-            fileUrl: submission.fileUrl,
-            status: 'pending',
-            submittedAt: todayStr
-          }
-        };
+        updateField[`homeworkStatus.${itemId}`] = newSubmission;
       }
 
-      return updatedStudent;
-    });
+      await updateDoc(doc(db, 'students', currentStudentId), updateField);
 
-    saveStudents(updatedStudents);
-    
-    // Trigger success notification
-    setXpBannerText('申報資料已送出！待指導 VS 核准後將可獲取學分與 XP！');
-    setShowXpBanner(true);
-    setTimeout(() => setShowXpBanner(false), 4000);
+      // Trigger success notification
+      setXpBannerText('申報資料已送出！待指導 VS 核准後將可獲取學分與 XP！');
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 4000);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + currentStudentId);
+    }
   };
 
   // Student action: Mark dice rolled and add bonus XP
-  const handleMarkRolled = (
+  const handleMarkRolled = async (
     type: 'rotation' | 'homework',
     itemId: string,
     bonusXp: number,
@@ -178,27 +300,12 @@ export default function App() {
   ) => {
     if (!currentStudentId) return;
 
-    const updatedStudents = students.map((s) => {
-      if (s.id !== currentStudentId) return s;
+    const student = students.find(s => s.id === currentStudentId);
+    if (!student) return;
 
-      const updatedStudent = { ...s };
-
-      if (type === 'rotation') {
-        const mKey = parseInt(itemId);
-        updatedStudent.rotationRolled = {
-          ...(updatedStudent.rotationRolled || {}),
-          [mKey]: true
-        };
-      } else if (type === 'homework') {
-        updatedStudent.homeworkRolled = {
-          ...(updatedStudent.homeworkRolled || {}),
-          [itemId]: true
-        };
-      }
-
-      // Add XP & Check for Level Up!
-      let nextXp = updatedStudent.xp + bonusXp;
-      let nextLevel = updatedStudent.level;
+    try {
+      let nextXp = student.xp + bonusXp;
+      let nextLevel = student.level;
 
       if (nextXp >= LEVEL_UP_XP) {
         nextLevel += 1;
@@ -206,90 +313,89 @@ export default function App() {
         
         // Trigger Level-Up Modal
         setLevelUpData({
-          studentName: updatedStudent.name,
-          oldLevel: updatedStudent.level,
+          studentName: student.name,
+          oldLevel: student.level,
           newLevel: nextLevel
         });
         setShowLevelUpModal(true);
       }
 
-      updatedStudent.xp = nextXp;
-      updatedStudent.level = nextLevel;
+      const updateField: any = {
+        xp: nextXp,
+        level: nextLevel
+      };
+
+      if (type === 'rotation') {
+        const mKey = parseInt(itemId);
+        updateField[`rotationRolled.${mKey}`] = true;
+      } else if (type === 'homework') {
+        updateField[`homeworkRolled.${itemId}`] = true;
+      }
+
+      await updateDoc(doc(db, 'students', currentStudentId), updateField);
 
       // Trigger XP gain banner
       setXpBannerText(message);
       setShowXpBanner(true);
       setTimeout(() => setShowXpBanner(false), 4500);
-
-      return updatedStudent;
-    });
-
-    saveStudents(updatedStudents);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + currentStudentId);
+    }
   };
 
-  const handleUpdateOngoingMonth = (month: number) => {
+  const handleUpdateOngoingMonth = async (month: number) => {
     if (!currentStudentId) return;
-    const updatedStudents = students.map((s) => {
-      if (s.id !== currentStudentId) return s;
-      return { ...s, currentOngoingMonth: month };
-    });
-    saveStudents(updatedStudents);
+    try {
+      await updateDoc(doc(db, 'students', currentStudentId), {
+        currentOngoingMonth: month
+      });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + currentStudentId);
+    }
   };
 
   // Teacher action: Approve or reject submissions
-  const handleApproveReject = (
+  const handleApproveReject = async (
     studentId: string,
     type: 'rotation' | 'course' | 'homework',
     itemId: string,
     status: 'approved' | 'rejected',
     feedback: string
   ) => {
-    const updatedStudents = students.map((s) => {
-      if (s.id !== studentId) return s;
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
 
-      const updatedStudent = { ...s };
+    try {
       let xpReward = 0;
+      const updateField: any = {};
 
       // Determine XP gains
       if (type === 'rotation') {
         const mKey = parseInt(itemId);
-        const prevStatus = s.rotationStatus[mKey]?.status;
+        const prevStatus = student.rotationStatus[mKey]?.status;
         
-        updatedStudent.rotationStatus = {
-          ...updatedStudent.rotationStatus,
-          [mKey]: {
-            ...updatedStudent.rotationStatus[mKey],
-            status,
-            feedback
-          }
-        };
+        updateField[`rotationStatus.${mKey}.status`] = status;
+        updateField[`rotationStatus.${mKey}.feedback`] = feedback;
+
         // Award XP only if first time approved
         if (status === 'approved' && prevStatus !== 'approved') {
           xpReward = 50; // Rotation awards 50 XP
         }
       } else if (type === 'course') {
-        const prevStatus = s.courseStatus[itemId]?.status;
-        updatedStudent.courseStatus = {
-          ...updatedStudent.courseStatus,
-          [itemId]: {
-            ...updatedStudent.courseStatus[itemId],
-            status,
-            feedback
-          }
-        };
+        const prevStatus = student.courseStatus[itemId]?.status;
+        
+        updateField[`courseStatus.${itemId}.status`] = status;
+        updateField[`courseStatus.${itemId}.feedback`] = feedback;
+
         if (status === 'approved' && prevStatus !== 'approved') {
           xpReward = 100; // Society course awards 100 XP
         }
       } else if (type === 'homework') {
-        const prevStatus = s.homeworkStatus[itemId]?.status;
-        updatedStudent.homeworkStatus = {
-          ...updatedStudent.homeworkStatus,
-          [itemId]: {
-            ...updatedStudent.homeworkStatus[itemId],
-            status,
-            feedback
-          }
-        };
+        const prevStatus = student.homeworkStatus[itemId]?.status;
+        
+        updateField[`homeworkStatus.${itemId}.status`] = status;
+        updateField[`homeworkStatus.${itemId}.feedback`] = feedback;
+
         if (status === 'approved' && prevStatus !== 'approved') {
           xpReward = 40; // Homework awards 40 XP
         }
@@ -297,8 +403,8 @@ export default function App() {
 
       // Add XP & Check for Level Up!
       if (xpReward > 0) {
-        let nextXp = updatedStudent.xp + xpReward;
-        let nextLevel = updatedStudent.level;
+        let nextXp = student.xp + xpReward;
+        let nextLevel = student.level;
 
         if (nextXp >= LEVEL_UP_XP) {
           nextLevel += 1;
@@ -306,42 +412,65 @@ export default function App() {
           
           // Trigger Level-Up Modal
           setLevelUpData({
-            studentName: updatedStudent.name,
-            oldLevel: updatedStudent.level,
+            studentName: student.name,
+            oldLevel: student.level,
             newLevel: nextLevel
           });
           setShowLevelUpModal(true);
         }
 
-        updatedStudent.xp = nextXp;
-        updatedStudent.level = nextLevel;
+        updateField.xp = nextXp;
+        updateField.level = nextLevel;
 
         // Trigger XP gain banner
-        setXpBannerText(`[VS 導師核可成功] 已核發給 ${updatedStudent.name} 醫師 +${xpReward} XP！`);
+        setXpBannerText(`[VS 導師核可成功] 已核發給 ${student.name} 醫師 +${xpReward} XP！`);
         setShowXpBanner(true);
         setTimeout(() => setShowXpBanner(false), 4000);
       }
 
-      return updatedStudent;
-    });
-
-    saveStudents(updatedStudents);
+      await updateDoc(doc(db, 'students', studentId), updateField);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
+    }
   };
 
-  const handleUpdateStudentXP = (studentId: string, level: number, xp: number) => {
-    const updatedStudents = students.map((s) => {
-      if (s.id === studentId) {
-        return { ...s, level, xp };
+  const handleUpdateStudentXP = async (
+    studentId: string,
+    level: number,
+    xp: number,
+    name?: string,
+    rLevel?: RLevel,
+    admissionYear?: number
+  ) => {
+    const s = students.find(x => x.id === studentId);
+    if (!s) return;
+
+    try {
+      const updateField: any = { level, xp };
+      if (name !== undefined) updateField.name = name;
+      if (admissionYear !== undefined) updateField.admissionYear = admissionYear;
+      if (rLevel !== undefined && rLevel !== s.rLevel) {
+        updateField.rLevel = rLevel;
+        // Synchronize active schedule with their stored fourYearSchedules for the new year level!
+        if (s.fourYearSchedules && s.fourYearSchedules[rLevel]) {
+          updateField.schedule = [...s.fourYearSchedules[rLevel]];
+        } else {
+          const template = rLevelTemplates[rLevel] || Array(12).fill('adult-er');
+          updateField.schedule = [...template];
+        }
       }
-      return s;
-    });
-    saveStudents(updatedStudents);
-    setXpBannerText(`[管理模式] 已手動更新醫師等級為 L${level} 與 XP 經驗值 ${xp}！`);
-    setShowXpBanner(true);
-    setTimeout(() => setShowXpBanner(false), 3000);
+
+      await updateDoc(doc(db, 'students', studentId), updateField);
+
+      setXpBannerText(`[管理模式] 已成功更新住院醫師基本資訊與學習歷程！`);
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 3000);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
+    }
   };
 
-  const handleModifyDeleteSubmission = (
+  const handleModifyDeleteSubmission = async (
     studentId: string,
     type: 'rotation' | 'course' | 'homework',
     itemId: string,
@@ -349,10 +478,11 @@ export default function App() {
     updatedNotes?: string,
     updatedStatus?: 'approved' | 'pending' | 'rejected'
   ) => {
-    const updatedStudents = students.map((s) => {
-      if (s.id !== studentId) return s;
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
 
-      const updatedStudent = { ...s };
+    try {
+      const updatedStudent = { ...student };
       
       if (type === 'rotation') {
         const mKey = parseInt(itemId);
@@ -409,56 +539,79 @@ export default function App() {
         updatedStudent.homeworkStatus = nextStatus;
       }
 
-      return updatedStudent;
-    });
+      await setDoc(doc(db, 'students', studentId), updatedStudent);
 
-    saveStudents(updatedStudents);
-    setXpBannerText(action === 'delete' ? '已成功刪除該申報紀錄。' : '已成功修改該申報之內容與狀態。');
-    setShowXpBanner(true);
-    setTimeout(() => setShowXpBanner(false), 3000);
+      setXpBannerText(action === 'delete' ? '已成功刪除該申報紀錄。' : '已成功修改該申報之內容與狀態。');
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 3000);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
+    }
   };
 
-  // Teacher action: Batch Import / Update Schedule
-  const handleUpdateSchedule = (studentId: string, schedule: string[]) => {
-    const updatedStudents = students.map((s) => {
-      if (s.id === studentId) {
-        return { ...s, schedule };
+  // Teacher action: Batch Import / Update Schedule & 4-Year Schedules
+  const handleUpdateSchedule = async (
+    studentId: string,
+    schedule: string[],
+    fourYearSchedules?: Record<RLevel, string[]>
+  ) => {
+    try {
+      const updateData: any = { schedule };
+      if (fourYearSchedules) {
+        updateData.fourYearSchedules = fourYearSchedules;
       }
-      return s;
-    });
-    saveStudents(updatedStudents);
+      await updateDoc(doc(db, 'students', studentId), updateData);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
+    }
   };
 
   // Custom Registry Additions
-  const handleAddCustomCourse = (course: Course) => {
-    const nextList = [...customCourses, course];
-    setCustomCourses(nextList);
-    localStorage.setItem('em_residents_custom_courses', JSON.stringify(nextList));
-    // Also inject into general list (handled inside CoursesView via concat if needed)
-    COURSES.push(course);
+  const handleAddCustomCourse = async (course: Course) => {
+    try {
+      await setDoc(doc(db, 'custom_courses', course.id), course);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'custom_courses/' + course.id);
+    }
   };
 
-  const handleAddCustomHomework = (homework: Homework) => {
-    const nextList = [...customHomeworks, homework];
-    setCustomHomeworks(nextList);
-    localStorage.setItem('em_residents_custom_hws', JSON.stringify(nextList));
-    // Inject into DEFAULT_HOMEWORKS
-    DEFAULT_HOMEWORKS.push(homework);
+  const handleAddCustomHomework = async (homework: Homework) => {
+    try {
+      await setDoc(doc(db, 'custom_homeworks', homework.id), homework);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'custom_homeworks/' + homework.id);
+    }
   };
 
-  const handleAddStudent = (newStudent: Student) => {
-    const updated = [...students, newStudent];
-    saveStudents(updated);
-    setCurrentStudentId(newStudent.id);
+  const handleAddStudent = async (newStudent: Student) => {
+    try {
+      const studentWith4Year = {
+        ...newStudent,
+        fourYearSchedules: newStudent.fourYearSchedules || {
+          R1: newStudent.rLevel === 'R1' ? [...newStudent.schedule] : ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
+          R2: newStudent.rLevel === 'R2' ? [...newStudent.schedule] : ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+          R3: newStudent.rLevel === 'R3' ? [...newStudent.schedule] : ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+          R4: newStudent.rLevel === 'R4' ? [...newStudent.schedule] : ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+        }
+      };
+      await setDoc(doc(db, 'students', newStudent.id), studentWith4Year);
+      setCurrentStudentId(newStudent.id);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + newStudent.id);
+    }
   };
 
-  const handleDeleteStudent = (studentId: string) => {
-    const updated = students.filter(s => s.id !== studentId);
-    saveStudents(updated);
-    if (updated.length > 0) {
-      setCurrentStudentId(updated[0].id);
-    } else {
-      setCurrentStudentId('');
+  const handleDeleteStudent = async (studentId: string) => {
+    try {
+      await deleteDoc(doc(db, 'students', studentId));
+      const updated = students.filter(s => s.id !== studentId);
+      if (updated.length > 0) {
+        setCurrentStudentId(updated[0].id);
+      } else {
+        setCurrentStudentId('');
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
     }
   };
 
@@ -673,6 +826,12 @@ export default function App() {
             onModifyDeleteSubmission={handleModifyDeleteSubmission}
             onAddStudent={handleAddStudent}
             onDeleteStudent={handleDeleteStudent}
+            systemOngoingMonth={systemOngoingMonth}
+            systemDateText={systemDateText}
+            onUpdateSystemTime={handleUpdateSystemTime}
+            rLevelTemplates={rLevelTemplates}
+            onUpdateRLevelTemplates={handleUpdateRLevelTemplates}
+            onApplyRLevelTemplateToAll={handleApplyRLevelTemplateToAll}
           />
         ) : (
           // 2. Student Resident Active View
@@ -683,7 +842,8 @@ export default function App() {
                 <DashboardView 
                   student={currentStudent} 
                   onTabChange={setActiveTab} 
-                  onUpdateOngoingMonth={handleUpdateOngoingMonth}
+                  systemOngoingMonth={systemOngoingMonth}
+                  systemDateText={systemDateText}
                 />
               )}
 
@@ -692,7 +852,8 @@ export default function App() {
                   student={currentStudent} 
                   onUpdateStatus={handleUpdateStatus} 
                   onMarkRolled={handleMarkRolled}
-                  onUpdateOngoingMonth={handleUpdateOngoingMonth}
+                  systemOngoingMonth={systemOngoingMonth}
+                  systemDateText={systemDateText}
                 />
               )}
 

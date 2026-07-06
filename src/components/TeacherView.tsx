@@ -32,10 +32,10 @@ interface TeacherViewProps {
     status: 'approved' | 'rejected',
     feedback: string
   ) => void;
-  onUpdateSchedule: (studentId: string, schedule: string[]) => void;
+  onUpdateSchedule: (studentId: string, schedule: string[], fourYearSchedules?: Record<RLevel, string[]>) => void;
   onAddCustomCourse: (course: Course) => void;
   onAddCustomHomework: (homework: Homework) => void;
-  onUpdateStudentXP?: (studentId: string, level: number, xp: number) => void;
+  onUpdateStudentXP?: (studentId: string, level: number, xp: number, name?: string, rLevel?: RLevel, admissionYear?: number) => void;
   onModifyDeleteSubmission?: (
     studentId: string,
     type: 'rotation' | 'course' | 'homework',
@@ -46,6 +46,14 @@ interface TeacherViewProps {
   ) => void;
   onAddStudent?: (newStudent: Student) => void;
   onDeleteStudent?: (studentId: string) => void;
+  
+  // New System settings props
+  systemOngoingMonth: number;
+  systemDateText: string;
+  onUpdateSystemTime: (month: number, dateText: string) => void;
+  rLevelTemplates: Record<RLevel, string[]>;
+  onUpdateRLevelTemplates: (templates: Record<RLevel, string[]>) => void;
+  onApplyRLevelTemplateToAll?: (rLevel: RLevel) => void;
 }
 
 export default function TeacherView({
@@ -58,16 +66,31 @@ export default function TeacherView({
   onModifyDeleteSubmission,
   onAddStudent,
   onDeleteStudent,
+  systemOngoingMonth,
+  systemDateText,
+  onUpdateSystemTime,
+  rLevelTemplates,
+  onUpdateRLevelTemplates,
+  onApplyRLevelTemplateToAll,
 }: TeacherViewProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'schedule' | 'create' | 'manage'>('pending');
+  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'schedule' | 'create' | 'manage' | 'settings'>('pending');
   
   // States for Review action
   const [reviewFeedbacks, setReviewFeedbacks] = useState<Record<string, string>>({}); // key: studentId-type-itemId
 
   // States for Schedule Management
   const [selectedScheduleStudentId, setSelectedScheduleStudentId] = useState<string>(students[0]?.id || '');
+  const [selectedRYearTab, setSelectedRYearTab] = useState<RLevel>('R1');
   const [excelPasteText, setExcelPasteText] = useState('');
   const [excelParseMessage, setExcelParseMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  // Synchronize year tab with selected resident's current R-level
+  React.useEffect(() => {
+    const student = students.find(s => s.id === selectedScheduleStudentId);
+    if (student) {
+      setSelectedRYearTab(student.rLevel);
+    }
+  }, [selectedScheduleStudentId]);
 
   // States for Adding New Resident
   const [newStudentName, setNewStudentName] = useState('');
@@ -97,6 +120,9 @@ export default function TeacherView({
   const selectedManageStudent = students.find(s => s.id === selectedManageStudentId);
   const [editLevelInput, setEditLevelInput] = useState<number>(0);
   const [editXpInput, setEditXpInput] = useState<number>(0);
+  const [editNameInput, setEditNameInput] = useState<string>('');
+  const [editRLevelInput, setEditRLevelInput] = useState<RLevel>('R1');
+  const [editAdmissionYearInput, setEditAdmissionYearInput] = useState<number>(115);
   const [editingSubKey, setEditingSubKey] = useState<string | null>(null);
   const [editSubNotes, setEditSubNotes] = useState<string>('');
   const [editSubStatus, setEditSubStatus] = useState<'approved' | 'pending' | 'rejected'>('pending');
@@ -106,12 +132,22 @@ export default function TeacherView({
     if (selectedManageStudent) {
       setEditLevelInput(selectedManageStudent.level);
       setEditXpInput(selectedManageStudent.xp);
+      setEditNameInput(selectedManageStudent.name);
+      setEditRLevelInput(selectedManageStudent.rLevel);
+      setEditAdmissionYearInput(selectedManageStudent.admissionYear || 115);
     }
   }, [selectedManageStudentId, students]);
 
   const handleSaveXP = () => {
     if (selectedManageStudent && onUpdateStudentXP) {
-      onUpdateStudentXP(selectedManageStudent.id, editLevelInput, editXpInput);
+      onUpdateStudentXP(
+        selectedManageStudent.id,
+        editLevelInput,
+        editXpInput,
+        editNameInput.trim(),
+        editRLevelInput,
+        editAdmissionYearInput
+      );
     }
   };
 
@@ -231,9 +267,27 @@ export default function TeacherView({
 
   const handleManualScheduleChange = (monthIdx: number, deptId: string) => {
     if (!selectedScheduleStudent) return;
-    const nextSchedule = [...selectedScheduleStudent.schedule];
-    nextSchedule[monthIdx] = deptId;
-    onUpdateSchedule(selectedScheduleStudent.id, nextSchedule);
+    
+    const currentFourYearSchedules = selectedScheduleStudent.fourYearSchedules || {
+      R1: selectedScheduleStudent.rLevel === 'R1' ? [...selectedScheduleStudent.schedule] : ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
+      R2: selectedScheduleStudent.rLevel === 'R2' ? [...selectedScheduleStudent.schedule] : ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+      R3: selectedScheduleStudent.rLevel === 'R3' ? [...selectedScheduleStudent.schedule] : ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+      R4: selectedScheduleStudent.rLevel === 'R4' ? [...selectedScheduleStudent.schedule] : ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er']
+    };
+
+    const updatedYearSchedule = [...(currentFourYearSchedules[selectedRYearTab] || Array(12).fill('adult-er'))];
+    updatedYearSchedule[monthIdx] = deptId;
+
+    const nextFourYearSchedules = {
+      ...currentFourYearSchedules,
+      [selectedRYearTab]: updatedYearSchedule
+    };
+
+    const nextActiveSchedule = selectedRYearTab === selectedScheduleStudent.rLevel
+      ? updatedYearSchedule
+      : [...selectedScheduleStudent.schedule];
+
+    onUpdateSchedule(selectedScheduleStudent.id, nextActiveSchedule, nextFourYearSchedules);
   };
 
   // Excel-like Schedule Importer Parser
@@ -262,12 +316,20 @@ export default function TeacherView({
       '災難醫學': 'disaster', '災難': 'disaster',
       '毒物科': 'toxicology', '毒物': 'toxicology',
       '偏遠地區': 'remote', '偏鄉': 'remote',
+      '急診總醫師': 'admin', '總醫師': 'admin', 'Admin': 'admin',
       '年休': 'annual-leave', '放假': 'annual-leave', '特休': 'annual-leave', '休假': 'annual-leave',
       '尚未開始訓練': 'not-started', '尚未開始': 'not-started', '未開始': 'not-started',
       '完訓': 'completed-training', '完成訓練': 'completed-training'
     };
 
-    const nextSchedule = [...selectedScheduleStudent.schedule];
+    const currentFourYearSchedules = selectedScheduleStudent.fourYearSchedules || {
+      R1: selectedScheduleStudent.rLevel === 'R1' ? [...selectedScheduleStudent.schedule] : ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
+      R2: selectedScheduleStudent.rLevel === 'R2' ? [...selectedScheduleStudent.schedule] : ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+      R3: selectedScheduleStudent.rLevel === 'R3' ? [...selectedScheduleStudent.schedule] : ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+      R4: selectedScheduleStudent.rLevel === 'R4' ? [...selectedScheduleStudent.schedule] : ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er']
+    };
+
+    const targetYearSchedule = [...(currentFourYearSchedules[selectedRYearTab] || Array(12).fill('adult-er'))];
     let matchedCount = 0;
 
     // Split text by common separators: commas, tabs, semicolons, newlines
@@ -310,16 +372,25 @@ export default function TeacherView({
       }
 
       if (foundDeptId) {
-        nextSchedule[m - 1] = foundDeptId;
+        targetYearSchedule[m - 1] = foundDeptId;
         matchedCount++;
       }
     }
 
     if (matchedCount > 0) {
-      onUpdateSchedule(selectedScheduleStudent.id, nextSchedule);
+      const nextFourYearSchedules = {
+        ...currentFourYearSchedules,
+        [selectedRYearTab]: targetYearSchedule
+      };
+
+      const nextActiveSchedule = selectedRYearTab === selectedScheduleStudent.rLevel
+        ? targetYearSchedule
+        : [...selectedScheduleStudent.schedule];
+
+      onUpdateSchedule(selectedScheduleStudent.id, nextActiveSchedule, nextFourYearSchedules);
       setExcelParseMessage({ 
         type: 'success', 
-        text: `匯入成功！已成功解析並更新 12 個月中的 ${matchedCount} 個科別輪訓。` 
+        text: `匯入成功！已成功解析並更新 ${selectedRYearTab} 的 12 個月中的 ${matchedCount} 個科別輪訓。` 
       });
       setExcelPasteText('');
     } else {
@@ -380,8 +451,8 @@ export default function TeacherView({
 
     if (!onAddStudent) return;
 
-    // Default 12-month schedule loaded with adult emergency
-    const defaultSchedule = Array(12).fill('adult-er');
+    // Default 12-month schedule loaded with their R-level template or adult emergency
+    const defaultSchedule = rLevelTemplates[newStudentRLevel] || Array(12).fill('adult-er');
 
     const newStudent: Student = {
       id: `student-${Date.now()}`,
@@ -391,7 +462,13 @@ export default function TeacherView({
       xp: 0,
       admissionYear: newStudentYear,
       avatar: customAvatarBase64 || selectedAvatarOption,
-      schedule: defaultSchedule,
+      schedule: [...defaultSchedule],
+      fourYearSchedules: {
+        R1: [...(rLevelTemplates.R1 || Array(12).fill('adult-er'))],
+        R2: [...(rLevelTemplates.R2 || Array(12).fill('adult-er'))],
+        R3: [...(rLevelTemplates.R3 || Array(12).fill('adult-er'))],
+        R4: [...(rLevelTemplates.R4 || Array(12).fill('adult-er'))]
+      },
       rotationStatus: {},
       courseStatus: {},
       homeworkStatus: {}
@@ -489,6 +566,18 @@ export default function TeacherView({
           >
             <Users className="h-4 w-4" />
             <span>歷程與經驗值管理</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('settings')}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+              activeSubTab === 'settings'
+                ? 'bg-indigo-600 text-white shadow'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Clock className="h-4 w-4" />
+            <span>系統時間設定</span>
           </button>
         </div>
 
@@ -649,7 +738,7 @@ export default function TeacherView({
               <div className="flex items-center space-x-2">
                 <Users className="h-5 w-5 text-indigo-600" />
                 <h3 className="text-sm font-extrabold text-slate-800">
-                  手動調整住院醫師 12 個月輪訓表
+                  住院醫師 4 年輪訓表調整
                 </h3>
               </div>
               
@@ -666,14 +755,62 @@ export default function TeacherView({
             </div>
 
             {selectedScheduleStudent && (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                {/* 4-Year Tabs Selector */}
+                <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200/60">
+                  <span className="text-[11px] font-bold text-slate-500 pl-1">
+                    訓練年度：
+                  </span>
+                  <div className="flex space-x-1.5">
+                    {(['R1', 'R2', 'R3', 'R4'] as RLevel[]).map((rYear) => {
+                      const isCurrentGrade = selectedScheduleStudent.rLevel === rYear;
+                      const isSelected = selectedRYearTab === rYear;
+                      return (
+                        <button
+                          key={rYear}
+                          type="button"
+                          onClick={() => setSelectedRYearTab(rYear)}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                            isSelected
+                              ? 'bg-indigo-600 text-white shadow'
+                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span>{rYear}</span>
+                          {isCurrentGrade && (
+                            <span className="h-1.5 w-1.5 bg-rose-500 rounded-full" title="目前所屬年級" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Info Note Banner */}
+                {selectedRYearTab !== selectedScheduleStudent.rLevel ? (
+                  <div className="bg-amber-50 text-[10px] text-amber-900 border border-amber-200 px-3 py-1.5 rounded-lg font-medium flex items-center space-x-1 animate-in fade-in duration-200">
+                    <span>⚠️ 提示：您正在編輯非目前所屬年級的課表。當該醫師升為 <strong>{selectedRYearTab}</strong> 時，本課表將自動套用為其主輪訓課表。</span>
+                  </div>
+                ) : (
+                  <div className="bg-teal-50/50 text-[10px] text-teal-900 border border-teal-200/50 px-3 py-1.5 rounded-lg font-medium flex items-center space-x-1 animate-in fade-in duration-200">
+                    <span>✅ 提示：您正在編輯目前所屬年級 <strong>{selectedRYearTab}</strong> 的課表，設定將即時同步於大富翁與作業。</span>
+                  </div>
+                )}
+
                 <p className="text-xs text-slate-500">
-                  請點擊下方月份，使用下拉菜單修改 <strong>{selectedScheduleStudent.name}</strong> 醫師的每月輪訓科別，大富翁及作業頁面將自動同步：
+                  修改 <strong>{selectedScheduleStudent.name}</strong> 醫師於 <strong>{selectedRYearTab}</strong> 階段之 12 個月輪訓科別：
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[380px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[350px] overflow-y-auto pr-1">
                   {MONTH_NAMES.map((monthName, idx) => {
-                    const currentDeptId = selectedScheduleStudent.schedule[idx] || 'adult-er';
+                    const currentFourYearSchedules = selectedScheduleStudent.fourYearSchedules || {
+                      R1: selectedScheduleStudent.rLevel === 'R1' ? [...selectedScheduleStudent.schedule] : ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
+                      R2: selectedScheduleStudent.rLevel === 'R2' ? [...selectedScheduleStudent.schedule] : ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+                      R3: selectedScheduleStudent.rLevel === 'R3' ? [...selectedScheduleStudent.schedule] : ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+                      R4: selectedScheduleStudent.rLevel === 'R4' ? [...selectedScheduleStudent.schedule] : ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er']
+                    };
+                    const currentDeptId = (currentFourYearSchedules[selectedRYearTab] || Array(12).fill('adult-er'))[idx] || 'adult-er';
+
                     return (
                       <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg border border-slate-100 bg-slate-50/50 text-xs">
                         <span className="font-extrabold text-slate-800 font-mono shrink-0 w-16">
@@ -1161,44 +1298,86 @@ export default function TeacherView({
 
             </div>
 
-            {/* XP and Level Card */}
+            {/* Resident Information & Progress Card */}
             <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
               <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-                <Sparkles className="h-5 w-5 text-amber-500" />
+                <Sparkles className="h-5 w-5 text-indigo-600" />
                 <h3 className="text-sm font-extrabold text-slate-800">
-                  修改經驗值 (XP) 與等級
+                  修改基本資訊與學習歷程
                 </h3>
               </div>
               
-              <div className="space-y-4 text-xs">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block font-bold text-slate-700">等級 (Level)</label>
+              <div className="space-y-3.5 text-xs">
+                {/* Name & Admission Year */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block font-bold text-slate-600">姓名：</label>
+                    <input
+                      type="text"
+                      value={editNameInput}
+                      onChange={(e) => setEditNameInput(e.target.value)}
+                      className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block font-bold text-slate-600">入學年度：</label>
+                    <select
+                      value={editAdmissionYearInput}
+                      onChange={(e) => setEditAdmissionYearInput(parseInt(e.target.value))}
+                      className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-indigo-500 font-mono"
+                    >
+                      <option value={115}>115 年度</option>
+                      <option value={114}>114 年度</option>
+                      <option value={113}>113 年度</option>
+                      <option value={112}>112 年度</option>
+                      <option value={111}>111 年度</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Grade rLevel Selector */}
+                <div className="space-y-1">
+                  <label className="block font-bold text-slate-600">目前訓練階段 (年級)：</label>
+                  <select
+                    value={editRLevelInput}
+                    onChange={(e) => setEditRLevelInput(e.target.value as RLevel)}
+                    className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-indigo-500 font-black text-indigo-600"
+                  >
+                    <option value="R1">R1 (第一年住院醫師)</option>
+                    <option value="R2">R2 (第二年住院醫師)</option>
+                    <option value="R3">R3 (第三年住院醫師)</option>
+                    <option value="R4">R4 (第四年住院醫師)</option>
+                  </select>
+                </div>
+
+                {/* Level & XP inputs */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block font-bold text-slate-600">等級 (Level)</label>
                     <input
                       type="number"
                       min={1}
                       max={100}
                       value={editLevelInput}
                       onChange={(e) => setEditLevelInput(parseInt(e.target.value) || 1)}
-                      className="w-full rounded border border-slate-300 px-3 py-2 text-xs font-mono text-slate-700 focus:outline-none focus:border-indigo-500"
+                      className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-xs font-mono text-slate-700 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="block font-bold text-slate-700">目前經驗值 (XP)</label>
+                  <div className="space-y-1">
+                    <label className="block font-bold text-slate-600">目前經驗值 (XP)</label>
                     <input
                       type="number"
                       min={0}
                       max={999}
                       value={editXpInput}
                       onChange={(e) => setEditXpInput(parseInt(e.target.value) || 0)}
-                      className="w-full rounded border border-slate-300 px-3 py-2 text-xs font-mono text-slate-700 focus:outline-none focus:border-indigo-500"
+                      className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-xs font-mono text-slate-700 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                 </div>
 
-                <div className="p-3 bg-indigo-50/50 rounded-lg border border-indigo-100 text-[11px] text-indigo-900 leading-normal">
-                  <p>💡 每升一級需要累積 <strong>100 XP</strong>。</p>
-                  <p className="mt-1">您可以直接修改數值，系統將手動強制覆寫該住院醫師的學習等級與經驗進度。</p>
+                <div className="p-3 bg-indigo-50/50 rounded-lg border border-indigo-100 text-[11px] text-indigo-900 leading-normal space-y-1">
+                  <p>💡 系統提示：若您變更該醫師的 <strong>年級訓練階段</strong>，其大富翁主輪訓課表將會 <strong>自動同步載入</strong> 您為其設定的該年級客製輪訓課表！</p>
                 </div>
 
                 <button
@@ -1206,7 +1385,7 @@ export default function TeacherView({
                   className="w-full flex items-center justify-center space-x-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg text-xs shadow hover:shadow-indigo-600/10 transition-all cursor-pointer"
                 >
                   <Save className="h-4 w-4" />
-                  <span>儲存更新等級與 XP</span>
+                  <span>儲存更新基本資訊與學習進度</span>
                 </button>
               </div>
             </div>
@@ -1423,6 +1602,60 @@ export default function TeacherView({
 
           </div>
 
+        </div>
+      )}
+
+      {/* Sub Tab: Global System Settings */}
+      {activeSubTab === 'settings' && (
+        <div className="space-y-6">
+          {/* Section 1: System Time / Ongoing Month Settings */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+            <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
+              <Clock className="h-5 w-5 text-indigo-600" />
+              <h3 className="text-sm font-extrabold text-slate-800">
+                系統時間設定 (Global Time Settings)
+              </h3>
+            </div>
+            
+            <p className="text-xs text-slate-500 leading-relaxed">
+              設定目前系統日期與核心進行月份。<strong>此設定為強制管控，學生在個人端將只能檢視，無法任意變更進行中的月份。</strong>這能確保所有住院醫師皆在相同的教學進度下進行大富翁輪訓與核心學分申報。
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700">目前進行訓練月份</label>
+                <select
+                  value={systemOngoingMonth}
+                  onChange={(e) => onUpdateSystemTime(parseInt(e.target.value), systemDateText)}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-black text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  {MONTH_NAMES.map((name, idx) => (
+                    <option key={idx + 1} value={idx + 1}>
+                      {name} (M{idx + 1})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700">目前系統顯示日期</label>
+                <input
+                  type="date"
+                  value={systemDateText}
+                  onChange={(e) => onUpdateSystemTime(systemOngoingMonth, e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-mono text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-indigo-50 border border-indigo-100 rounded-lg text-xs text-indigo-900 font-semibold flex items-start space-x-2">
+              <span className="shrink-0 text-base">💡</span>
+              <div className="space-y-1">
+                <p>當您變更上述設定後，所有住院醫師的個人首頁、大富翁地圖、作業頁面皆會自動鎖定為該月份。</p>
+                <p className="text-slate-500 font-medium text-[11px]">舉例：若設為「七月」，學生端大富翁將直接將其第 7 個月科別標記為「目前進行中」，學生無法自行切換進行中的月份，以達到教學部統一控管之目的。</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

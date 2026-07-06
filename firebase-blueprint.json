@@ -1,0 +1,71 @@
+{
+  "entities": {
+    "Student": {
+      "title": "Resident Student",
+      "description": "Represents an emergency medicine resident in the training program",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "rLevel": { "type": "string", "enum": ["R1", "R2", "R3", "R4"] },
+        "level": { "type": "integer" },
+        "xp": { "type": "integer" },
+        "schedule": { "type": "array" },
+        "admissionYear": { "type": "integer" },
+        "avatar": { "type": "string" }
+      },
+      "required": ["id", "name", "rLevel", "level", "xp", "schedule"]
+    },
+    "Course": {
+      "title": "Custom Course",
+      "description": "A custom training course added by the teacher",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "xp": { "type": "integer" }
+      },
+      "required": ["id", "name", "xp"]
+    },
+    "Homework": {
+      "title": "Custom Homework",
+      "description": "A custom homework assignment added by the teacher",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "xp": { "type": "integer" },
+        "rLevel": { "type": "string", "enum": ["R1", "R2", "R3", "R4"] }
+      },
+      "required": ["id", "name", "xp", "rLevel"]
+    },
+    "SystemConfig": {
+      "title": "System Configuration",
+      "description": "Global settings including current month, date, and default templates",
+      "type": "object",
+      "properties": {
+        "systemOngoingMonth": { "type": "integer" },
+        "systemDateText": { "type": "string" },
+        "rLevelTemplates": { "type": "object" }
+      }
+    }
+  },
+  "firestore": {
+    "students": {
+      "schema": "Student",
+      "description": "The collection of EM resident students"
+    },
+    "custom_courses": {
+      "schema": "Course",
+      "description": "The collection of custom medical courses"
+    },
+    "custom_homeworks": {
+      "schema": "Homework",
+      "description": "The collection of custom homework tasks"
+    },
+    "config/system": {
+      "schema": "SystemConfig",
+      "description": "The system config document"
+    }
+  }
+}

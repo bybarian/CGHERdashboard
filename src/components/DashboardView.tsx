@@ -67,22 +67,12 @@ const renderDeptIcon = (iconName: string) => {
 interface DashboardViewProps {
   student: Student;
   onTabChange: (tab: string) => void;
-  onUpdateOngoingMonth?: (month: number) => void;
+  systemOngoingMonth: number;
+  systemDateText: string;
 }
 
-export default function DashboardView({ student, onTabChange, onUpdateOngoingMonth }: DashboardViewProps) {
-  // Determine current active month based on unfinished schedules
-  // Find first month index (1-12) that is not approved, or use currentOngoingMonth if set by user
-  let currentMonthIndex = student.currentOngoingMonth || 0;
-  if (!currentMonthIndex) {
-    currentMonthIndex = 1;
-    for (let m = 1; m <= 12; m++) {
-      if (!student.rotationStatus[m] || student.rotationStatus[m].status !== 'approved') {
-        currentMonthIndex = m;
-        break;
-      }
-    }
-  }
+export default function DashboardView({ student, onTabChange, systemOngoingMonth, systemDateText }: DashboardViewProps) {
+  const currentMonthIndex = systemOngoingMonth;
 
   const currentDeptId = student.schedule[currentMonthIndex - 1] || 'adult-er';
   const currentDept = DEPARTMENTS[currentDeptId] || DEPARTMENTS['adult-er'];
@@ -523,27 +513,29 @@ export default function DashboardView({ student, onTabChange, onUpdateOngoingMon
                   <h3 className="text-sm font-extrabold text-slate-800">
                     目前進行訓練月份：
                   </h3>
-                  <select
-                    value={currentMonthIndex}
-                    onChange={(e) => onUpdateOngoingMonth?.(parseInt(e.target.value))}
-                    className="text-xs font-black bg-teal-50 border border-teal-200 text-teal-800 rounded-md px-2.5 py-1 outline-none cursor-pointer focus:ring-1 focus:ring-teal-500 transition-all hover:bg-teal-100"
-                  >
-                    {MONTH_NAMES.map((name, idx) => (
-                      <option key={idx + 1} value={idx + 1}>
-                        {name} (M{idx + 1})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center space-x-1.5 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg px-2.5 py-1 text-xs font-black shadow-sm">
+                    <span>{MONTH_NAMES[currentMonthIndex - 1]} (M{currentMonthIndex})</span>
+                    <span className="text-[9px] bg-teal-600 text-white font-extrabold px-1.5 py-0.25 rounded-md flex items-center">
+                      🔒 後台管控
+                    </span>
+                  </div>
                 </div>
                 
                 <div className="flex items-center space-x-2 text-[11px] font-semibold text-slate-500 bg-slate-100/80 px-2.5 py-1 rounded-lg self-start sm:self-auto">
                   <Clock className="h-3.5 w-3.5 text-slate-400" />
-                  <span>系統時間：2026年7月5日</span>
+                  <span>系統時間：{(() => {
+                    if (!systemDateText) return '2026年7月5日';
+                    const parts = systemDateText.split('-');
+                    if (parts.length === 3) {
+                      return `${parts[0]}年${parseInt(parts[1], 10)}月${parseInt(parts[2], 10)}日`;
+                    }
+                    return systemDateText;
+                  })()}</span>
                 </div>
               </div>
               
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[10px] text-slate-400 font-bold">
-                <span>💡 預設為首個未核准科別 (M{currentMonthIndex})，您可使用選單任意變更目前進行中的月份以供模擬與申報。</span>
+                <span>💡 系統進行月份目前由教學部進行後台統一排程管控，不開放住院醫師自行手動變更，以確保教學進度正確性。</span>
                 <button 
                   onClick={() => onTabChange('monopoly')}
                   className="flex items-center text-xs font-bold text-teal-600 hover:text-teal-700 cursor-pointer"
