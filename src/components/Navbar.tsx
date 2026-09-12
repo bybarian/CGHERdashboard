@@ -15,9 +15,11 @@ import {
   Menu,
   Monitor,
   Map,
-  AlertCircle
+  AlertCircle,
+  Clock,
+  Zap
 } from 'lucide-react';
-import { Student, RLevel } from '../types';
+import { Student, RLevel, ClockMode } from '../types';
 
 interface NavbarProps {
   students: Student[];
@@ -29,6 +31,10 @@ interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onToggleSidebar?: () => void;
+  systemOngoingMonth?: number;
+  systemDateText?: string;
+  clockMode?: ClockMode;
+  currentTimeText?: string;
 }
 
 export default function Navbar({
@@ -40,7 +46,11 @@ export default function Navbar({
   onTeacherLogout,
   activeTab,
   setActiveTab,
-  onToggleSidebar
+  onToggleSidebar,
+  systemOngoingMonth = 7,
+  systemDateText = '2026-07-05',
+  clockMode = 'auto',
+  currentTimeText = ''
 }: NavbarProps) {
   const [showTeacherModal, setShowTeacherModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
@@ -137,18 +147,20 @@ export default function Navbar({
           </div>
         )}
 
-        {/* User Switching Controls */}
-        <div className="flex items-center space-x-3">
+        {/* User Switching Controls & Upper-Right Clock */}
+        <div className="flex items-center space-x-2 sm:space-x-3">
           {/* Student Selector Dropdown (Hidden when teacher is active) */}
           {!isTeacher ? (
             <div className="relative">
               <button 
                 id="student-select-btn"
                 onClick={() => setShowStudentDropdown(!showStudentDropdown)}
-                className="flex items-center space-x-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+                className="flex items-center space-x-2 rounded-lg border border-slate-200 bg-white px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 <span className="text-sm">
-                  {selectedStudent?.avatar && selectedStudent.avatar.startsWith('data:') ? '👤' : (selectedStudent?.avatar || '👨‍⚕️')}
+                  {selectedStudent?.avatar && selectedStudent.avatar.startsWith('data:') ? (
+                    <img referrerPolicy="no-referrer" src={selectedStudent.avatar} alt="Avatar" className="h-4 w-4 rounded-full object-cover inline-block" />
+                  ) : (selectedStudent?.avatar || '👨‍⚕️')}
                 </span>
                 <span>{selectedStudent?.name} ({selectedStudent?.rLevel})</span>
                 <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
@@ -157,7 +169,7 @@ export default function Navbar({
               {showStudentDropdown && (
                 <div 
                   id="student-dropdown-menu"
-                  className="absolute right-0 mt-1 w-48 rounded-lg border border-slate-200 bg-white p-1 shadow-lg z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                  className="absolute right-0 mt-1 w-52 rounded-lg border border-slate-200 bg-white p-1 shadow-lg z-50 animate-in fade-in slide-in-from-top-1 duration-150"
                 >
                   <div className="px-2 py-1.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
                     切換住院醫師
@@ -175,8 +187,12 @@ export default function Navbar({
                           : 'text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      <span className="flex items-center space-x-1">
-                        <span>{student.avatar && student.avatar.startsWith('data:') ? '👤' : (student.avatar || '👨‍⚕️')}</span>
+                      <span className="flex items-center space-x-1.5">
+                        <span className="text-sm">
+                          {student.avatar && student.avatar.startsWith('data:') ? (
+                            <img referrerPolicy="no-referrer" src={student.avatar} alt="Avatar" className="h-4 w-4 rounded-full object-cover inline-block" />
+                          ) : (student.avatar || '👨‍⚕️')}
+                        </span>
                         <span>{student.name}</span>
                       </span>
                       <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1 py-0.25 rounded">
@@ -188,9 +204,9 @@ export default function Navbar({
               )}
             </div>
           ) : (
-            <div className="flex items-center space-x-2 rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-1.5 text-xs font-bold text-indigo-700">
-              <Crown className="h-4 w-4 text-indigo-600" />
-              <span>教師管理模式</span>
+            <div className="flex items-center space-x-1.5 rounded-lg bg-indigo-50 border border-indigo-100 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-indigo-700">
+              <Crown className="h-4 w-4 text-indigo-600 shrink-0" />
+              <span>教師管理</span>
             </div>
           )}
 
@@ -199,7 +215,7 @@ export default function Navbar({
             <button
               id="logout-teacher-btn"
               onClick={onTeacherLogout}
-              className="flex items-center space-x-1 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-slate-900 transition-colors cursor-pointer"
+              className="flex items-center space-x-1 rounded-lg bg-slate-800 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-slate-900 transition-colors cursor-pointer"
             >
               <Unlock className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">登出教師區</span>
@@ -211,12 +227,36 @@ export default function Navbar({
                 setShowTeacherModal(true);
                 setLoginError(false);
               }}
-              className="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
+              className="flex items-center space-x-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
             >
               <Lock className="h-3.5 w-3.5 text-slate-500" />
               <span className="hidden sm:inline">教師登入</span>
             </button>
           )}
+
+          {/* System Running Clock Widget - Positioned in the Far Upper-Right Corner */}
+          <div 
+            id="navbar-system-clock"
+            title={clockMode === 'auto' ? '內建即時時鐘：依真實時間每秒推進' : '手動設定時間：目前處於自訂測試時間'}
+            className="flex items-center space-x-1.5 sm:space-x-2 bg-gradient-to-r from-slate-900 to-slate-950 text-white rounded-lg px-2 sm:px-2.5 py-1.5 border border-slate-800 shadow-sm"
+          >
+            <div className="flex items-center space-x-1">
+              <span className={`h-2 w-2 rounded-full ${clockMode === 'auto' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+              <span className="text-[10px] font-black tracking-wider text-slate-300 font-mono hidden md:inline">
+                {clockMode === 'auto' ? '即時' : '手動'}
+              </span>
+            </div>
+            <span className="text-slate-600 font-mono text-xs hidden md:inline">|</span>
+            <span className="font-mono text-xs font-black text-emerald-400 tracking-wider">
+              {currentTimeText || new Date().toTimeString().split(' ')[0]}
+            </span>
+            <span className="text-[11px] font-mono text-slate-400 hidden xl:inline">
+              {systemDateText}
+            </span>
+            <span className="bg-teal-600 text-white text-[10px] font-extrabold px-1.5 py-0.25 rounded font-mono shadow-2xs">
+              M{systemOngoingMonth}
+            </span>
+          </div>
         </div>
       </div>
 

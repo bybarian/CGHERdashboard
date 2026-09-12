@@ -31,7 +31,7 @@ import {
   CloudLightning,
   ShieldAlert
 } from 'lucide-react';
-import { Student, Homework, DEFAULT_HOMEWORKS, MONTH_NAMES, MONTHLY_CHECKLISTS, DEPARTMENTS } from '../types';
+import { Student, Homework, DEFAULT_HOMEWORKS, MONTH_NAMES, MONTHLY_CHECKLISTS, DEPARTMENTS, getApplicableMonthsForRLevel } from '../types';
 
 const getDeptIcon = (iconName: string) => {
   const className = "h-5 w-5";
@@ -78,12 +78,9 @@ interface HomeworkViewProps {
 }
 
 export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: HomeworkViewProps) {
-  // Get applicable months based on R level frequency (all 12 months are now selectable and active)
-  const getApplicableMonthsForRLevel = (rLevel: string): number[] => {
-    return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-  };
-
+  // Get applicable months based on R level frequency (R4 is 1-6 months up to June)
   const applicableMonths = getApplicableMonthsForRLevel(student.rLevel);
+  const activeMonthsLimit = student.rLevel === 'R4' ? 6 : 12;
 
   // All 12 monthly slots (either actual written homework or virtual routine checklist homework)
   const sortedHomeworks = Array.from({ length: 12 }).map((_, idx) => {
@@ -99,9 +96,9 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
     } as Homework;
   });
 
-  // Default to first incomplete month among all 12 months
+  // Default to first incomplete month among active months
   let defaultActiveMonth = 1;
-  for (let m = 1; m <= 12; m++) {
+  for (let m = 1; m <= activeMonthsLimit; m++) {
     const hwForMonth = sortedHomeworks.find(h => h.month === m);
     if (hwForMonth) {
       const status = student.homeworkStatus[hwForMonth.id];
@@ -125,6 +122,9 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
     dops: false,
     minicex: false
   });
+
+  // Default to Light Mode as requested by user ("一個淺色一個深色" - RotationBoard: dark, HomeworkView: light)
+  const [hwTheme, setHwTheme] = useState<'light' | 'dark'>('light');
 
   // Selected homework
   const activeHomework = sortedHomeworks.find(h => h.month === activeMonth)!;
@@ -188,10 +188,10 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
     }, 80);
   };
 
-  // Stats
-  const totalHws = 12;
-  const completedHws = sortedHomeworks.filter(h => student.homeworkStatus[h.id]?.status === 'approved').length;
-  const pendingHws = sortedHomeworks.filter(h => student.homeworkStatus[h.id]?.status === 'pending').length;
+  // Stats (R4 training extends to June of next year, so 6 months)
+  const totalHws = activeMonthsLimit;
+  const completedHws = sortedHomeworks.filter(h => h.month <= activeMonthsLimit && student.homeworkStatus[h.id]?.status === 'approved').length;
+  const pendingHws = sortedHomeworks.filter(h => h.month <= activeMonthsLimit && student.homeworkStatus[h.id]?.status === 'pending').length;
 
   const handleSubmitHomework = (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,51 +251,117 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
   };
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 transition-colors ${hwTheme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
       
       {/* Overview Block */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
+      <div className={`rounded-xl border p-5 transition-colors space-y-4 ${
+        hwTheme === 'dark' 
+          ? 'bg-slate-900 border-slate-800 shadow-xl text-slate-100' 
+          : 'bg-white border-slate-200 shadow-sm text-slate-900'
+      }`}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center space-x-2">
-              <span className="rounded-full bg-rose-500/10 border border-rose-500/20 px-2.5 py-0.5 text-[10px] font-extrabold text-rose-700 tracking-wider font-mono">
-                {student.rLevel} RESIDENT TRACK
-              </span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <span className="rounded-full bg-rose-500/10 border border-rose-500/20 px-2.5 py-0.5 text-[10px] font-extrabold text-rose-500 tracking-wider font-mono">
+                  {student.rLevel} RESIDENT TRACK
+                </span>
+              </div>
+
+              {/* Theme Switcher */}
+              <div className="flex md:hidden items-center space-x-1 rounded-lg bg-slate-100 dark:bg-slate-800 p-0.5 border border-slate-200 dark:border-slate-700 text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setHwTheme('light')}
+                  className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                    hwTheme === 'light' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  ☀️ 淺色 (預設)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHwTheme('dark')}
+                  className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                    hwTheme === 'dark' ? 'bg-slate-800 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  🌙 深色
+                </button>
+              </div>
             </div>
-            <h2 className="text-base font-extrabold text-slate-900 flex items-center mt-1.5">
-              <BookOpen className="h-5 w-5 text-rose-600 mr-2" />
-              每月急診核心能力與評量申報地圖 (RRC 評鑑檢核項目)
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              配合 {student.rLevel} 訓練規範，本年度 12 個月份皆需送審申報。其中部分月份為 <strong>免個案報告／免心得上傳</strong> 階段，您只需透過右側 <strong>常規五項自檢申報面板</strong> 一鍵核對即可完成。每次送審經指導教師簽核，皆可在地圖中央擲骰獲取豐富 XP 經驗值！
+
+            <div className="flex items-center justify-between mt-1.5">
+              <h2 className="text-base font-extrabold flex items-center">
+                <BookOpen className="h-5 w-5 text-rose-500 mr-2" />
+                每月急診核心能力與評量申報地圖 (RRC 評鑑檢核項目)
+              </h2>
+
+              {/* Theme Switcher Desktop */}
+              <div className="hidden md:flex items-center space-x-1 rounded-lg p-0.5 border text-[11px] font-bold ml-4 shrink-0 bg-slate-100 border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setHwTheme('light')}
+                  className={`px-2.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                    hwTheme === 'light' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  ☀️ 淺色作業本 (預設)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHwTheme('dark')}
+                  className={`px-2.5 py-0.5 rounded-md transition-all cursor-pointer ${
+                    hwTheme === 'dark' ? 'bg-slate-800 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  🌙 深色模式
+                </button>
+              </div>
+            </div>
+
+            <p className={`text-xs mt-1 leading-relaxed ${hwTheme === 'dark' ? 'text-slate-300' : 'text-slate-500'}`}>
+              {student.rLevel === 'R4' ? (
+                <>配合 <strong>R4 訓練規範</strong>（因 8-9 月起訓，訓練增列至隔年 6 月完訓），本階段共需完成 <strong>1-6 月</strong> 之作業與常規評量申報。每次送審經指導教師簽核，皆可在地圖中央擲骰獲取豐富 XP 經驗值！</>
+              ) : (
+                <>配合 <strong>{student.rLevel} 訓練規範</strong>，本年度 12 個月份皆需送審申報。其中部分月份為 <strong>免個案報告／免心得上傳</strong> 階段，您只需透過右側 <strong>常規五項自檢申報面板</strong> 一鍵核對即可完成。每次送審經指導教師簽核，皆可在地圖中央擲骰獲取豐富 XP 經驗值！</>
+              )}
             </p>
           </div>
 
           {/* Stats Badging */}
-          <div className="flex space-x-4 bg-rose-50/50 border border-rose-100 rounded-xl p-3 text-xs shrink-0 self-start md:self-auto">
-            <div className="text-center px-2 border-r border-rose-100">
+          <div className={`flex space-x-4 rounded-xl p-3 text-xs shrink-0 self-start md:self-auto border ${
+            hwTheme === 'dark'
+              ? 'bg-rose-950/40 border-rose-900/60'
+              : 'bg-rose-50/50 border-rose-100'
+          }`}>
+            <div className="text-center px-2 border-r border-rose-200/50">
               <span className="block text-[9px] font-bold text-slate-400">總核檢月份</span>
-              <span className="text-sm font-black text-rose-700 font-mono">{totalHws} 個月</span>
+              <span className="text-sm font-black text-rose-500 font-mono">{totalHws} 個月</span>
             </div>
-            <div className="text-center px-2 border-r border-rose-100">
-              <span className="block text-[9px] font-bold text-teal-600">已核可</span>
-              <span className="text-sm font-black text-teal-600 font-mono">{completedHws} 月</span>
+            <div className="text-center px-2 border-r border-rose-200/50">
+              <span className="block text-[9px] font-bold text-teal-500">已核可</span>
+              <span className="text-sm font-black text-teal-500 font-mono">{completedHws} 月</span>
             </div>
             <div className="text-center px-2">
               <span className="block text-[9px] font-bold text-amber-500">待審查</span>
-              <span className="text-sm font-black text-amber-600 font-mono">{pendingHws} 月</span>
+              <span className="text-sm font-black text-amber-500 font-mono">{pendingHws} 月</span>
             </div>
           </div>
         </div>
 
         {/* Level Progress Slider */}
-        <div className="border-t border-slate-100 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className={`border-t pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
+          hwTheme === 'dark' ? 'border-slate-800' : 'border-slate-100'
+        }`}>
           <div className="flex items-center space-x-2">
             <TrendingUp className="h-4 w-4 text-rose-500" />
-            <span className="font-bold text-slate-700">全年度申報進度：</span>
-            <span className="font-mono font-black text-rose-600">{totalHws > 0 ? Math.round((completedHws / totalHws) * 100) : 0}%</span>
+            <span className={`font-bold ${hwTheme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>全年度申報進度：</span>
+            <span className="font-mono font-black text-rose-500">{totalHws > 0 ? Math.round((completedHws / totalHws) * 100) : 0}%</span>
           </div>
-          <div className="flex-1 max-w-md h-2 rounded-full bg-slate-100 overflow-hidden">
+          <div className={`flex-1 max-w-md h-2 rounded-full overflow-hidden ${
+            hwTheme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'
+          }`}>
             <div 
               className="h-full bg-rose-500 rounded-full transition-all duration-500"
               style={{ width: `${totalHws > 0 ? (completedHws / totalHws) * 100 : 0}%` }}
@@ -308,7 +374,11 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Monopoly Board (Col-span 7) */}
-        <div className="lg:col-span-7 bg-slate-900/5 rounded-2xl border border-slate-200 p-4 flex flex-col items-center justify-center min-h-[460px]">
+        <div className={`lg:col-span-7 rounded-2xl border p-4 flex flex-col items-center justify-center min-h-[460px] transition-colors ${
+          hwTheme === 'dark'
+            ? 'bg-slate-950/90 border-slate-800 shadow-2xl'
+            : 'bg-slate-100/90 border-slate-200 shadow-sm'
+        }`}>
           
           <div className="grid grid-cols-4 grid-rows-4 gap-2 w-full max-w-[440px] aspect-square relative">
             
@@ -383,11 +453,11 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
               )}
             </div>
 
-            {/* Render 12 months for homework board */}
+            {/* Render 12 months for homework board with alternating colors */}
             {boardLayout.map((layout) => {
-              const isApplicable = true;
               const hw = sortedHomeworks.find(h => h.month === layout.month);
               const isSelected = activeMonth === layout.month;
+              const isEvenMonth = layout.month % 2 === 0;
               const hasWrittenHw = hw && !hw.id.startsWith('hw-routine-');
               const hwId = hw ? hw.id : `hw-routine-${student.rLevel.toLowerCase()}-${layout.month}`;
               const hStatus = student.homeworkStatus[hwId];
@@ -398,20 +468,60 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
               const gridRowClass = `row-start-${layout.row + 1}`;
               const gridColClass = `col-start-${layout.col + 1}`;
 
-              // Determine styling
-              let bgClass = 'bg-white hover:bg-slate-50 border-slate-200 cursor-pointer';
-              if (hStatus) {
-                if (hStatus.status === 'approved') {
-                  bgClass = 'bg-teal-50/70 hover:bg-teal-50 border-teal-300';
-                } else if (hStatus.status === 'pending') {
-                  bgClass = 'bg-amber-50/70 hover:bg-amber-50 border-amber-300';
-                } else if (hStatus.status === 'rejected') {
-                  bgClass = 'bg-rose-50/70 hover:bg-rose-50 border-rose-300';
+              // Determine styling with alternating light red and deeper red contrast (每月作業紅色主題)
+              let bgClass = '';
+              if (hwTheme === 'light') {
+                // High contrast alternating red: Even months Deeper Red (較深一點的紅色), Odd months Light Red (淺紅色)
+                if (isEvenMonth) {
+                  // Deeper Red Block (較深一點的紅色)
+                  bgClass = 'bg-rose-700 hover:bg-rose-800 border-rose-800 text-white shadow-xs cursor-pointer';
+                  if (hStatus) {
+                    if (hStatus.status === 'approved') {
+                      bgClass = 'bg-rose-850 hover:bg-rose-900 border-rose-950 text-white shadow-xs font-black ring-2 ring-rose-400/50 cursor-pointer';
+                    } else if (hStatus.status === 'pending') {
+                      bgClass = 'bg-amber-500 hover:bg-amber-600 border-amber-600 text-white shadow-xs animate-pulse cursor-pointer';
+                    } else if (hStatus.status === 'rejected') {
+                      bgClass = 'bg-slate-900 hover:bg-black border-rose-700 text-rose-300 shadow-xs cursor-pointer';
+                    }
+                  }
+                } else {
+                  // Light Red Block (淺紅色)
+                  bgClass = 'bg-rose-100 hover:bg-rose-200 border-rose-300 text-rose-950 shadow-xs cursor-pointer';
+                  if (hStatus) {
+                    if (hStatus.status === 'approved') {
+                      bgClass = 'bg-rose-500 hover:bg-rose-600 border-rose-600 text-white shadow-xs font-black ring-2 ring-rose-400/40 cursor-pointer';
+                    } else if (hStatus.status === 'pending') {
+                      bgClass = 'bg-amber-100 hover:bg-amber-200 border-amber-400 text-amber-950 shadow-xs animate-pulse cursor-pointer';
+                    } else if (hStatus.status === 'rejected') {
+                      bgClass = 'bg-rose-200 hover:bg-rose-300 border-rose-400 text-rose-950 shadow-xs cursor-pointer';
+                    }
+                  }
                 }
-              }
 
-              if (isSelected) {
-                bgClass = 'bg-rose-600 text-white border-rose-700 ring-4 ring-rose-200 shadow-md';
+                if (isSelected) {
+                  bgClass = 'bg-rose-600 text-white border-rose-400 ring-4 ring-rose-400/50 shadow-lg shadow-rose-500/30 scale-105 z-20 cursor-pointer';
+                }
+              } else {
+                // Alternating dark tones: Even months deeper rose-950, Odd months slate-950 with rose tint
+                bgClass = isEvenMonth 
+                  ? 'bg-rose-950/80 hover:bg-rose-900/90 border-rose-800/80 text-rose-100 cursor-pointer' 
+                  : 'bg-slate-950/95 hover:bg-rose-950/60 border-slate-800/90 text-rose-200 cursor-pointer';
+
+                if (hStatus) {
+                  if (hStatus.status === 'approved') {
+                    bgClass = isEvenMonth
+                      ? 'bg-rose-800/90 hover:bg-rose-750 border-rose-500 text-white font-black cursor-pointer'
+                      : 'bg-rose-950/90 hover:bg-rose-900 border-rose-400 text-rose-100 font-black cursor-pointer';
+                  } else if (hStatus.status === 'pending') {
+                    bgClass = 'bg-amber-950/80 hover:bg-amber-900 border-amber-500/80 text-amber-200 animate-pulse cursor-pointer';
+                  } else if (hStatus.status === 'rejected') {
+                    bgClass = 'bg-rose-950/90 hover:bg-rose-900 border-rose-500 text-rose-200 cursor-pointer';
+                  }
+                }
+
+                if (isSelected) {
+                  bgClass = 'bg-rose-600 text-white border-rose-400 ring-4 ring-rose-400/40 shadow-lg shadow-rose-500/30 scale-105 z-20 cursor-pointer';
+                }
               }
 
               return (
@@ -421,24 +531,52 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
                   className={`relative rounded-xl border p-2 flex flex-col justify-between items-center text-center transition-all select-none ${gridRowClass} ${gridColClass} ${bgClass}`}
                 >
                   {/* Top: Month ID */}
-                  <span className={`text-[9px] font-black font-mono tracking-wider ${isSelected ? 'text-rose-200' : 'text-slate-400'}`}>
+                  <span className={`text-[9px] font-black font-mono tracking-wider ${
+                    isSelected 
+                      ? 'text-rose-200' 
+                      : hwTheme === 'dark' 
+                      ? 'text-rose-300' 
+                      : isEvenMonth
+                      ? 'text-rose-100'
+                      : 'text-rose-800'
+                  }`}>
                     M{layout.month}
                   </span>
 
                   {/* Mid: Icon */}
-                  <div className={`my-1 ${isSelected ? 'text-white scale-110' : 'text-rose-600'}`}>
+                  <div className={`my-1 ${
+                    isSelected 
+                      ? 'text-white scale-110' 
+                      : hwTheme === 'dark' 
+                      ? 'text-rose-300' 
+                      : isEvenMonth 
+                      ? 'text-rose-100' 
+                      : 'text-rose-700'
+                  }`}>
                     {getDeptIcon(currentDept?.icon || 'User')}
                   </div>
 
                   {/* Bot: Mini Label */}
-                  <span className={`text-[9px] font-bold truncate w-full ${isSelected ? 'text-white' : 'text-slate-700'}`}>
-                    {hasWrittenHw ? (currentDept?.name || '科室作業') : '常規評量申報'}
+                  <span className={`text-[9px] font-bold truncate w-full ${
+                    isSelected 
+                      ? 'text-white' 
+                      : hwTheme === 'dark' 
+                      ? 'text-rose-100' 
+                      : isEvenMonth 
+                      ? 'text-white' 
+                      : 'text-rose-950'
+                  }`}>
+                    {student.rLevel === 'R4' && layout.month > 6 
+                      ? '完訓/專科甄審' 
+                      : hasWrittenHw 
+                      ? (currentDept?.name || '科室作業') 
+                      : '常規評量申報'}
                   </span>
 
                   {/* Small absolute indicator status */}
                   {!isSelected && hStatus && (
                     <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                      {hStatus.status === 'approved' && <span className="absolute inline-flex h-full w-full rounded-full bg-teal-500 opacity-75" />}
+                      {hStatus.status === 'approved' && <span className="absolute inline-flex h-full w-full rounded-full bg-teal-500 opacity-80" />}
                       {hStatus.status === 'pending' && <span className="absolute inline-flex h-full w-full rounded-full bg-amber-500 animate-ping" />}
                       {hStatus.status === 'rejected' && <span className="absolute inline-flex h-full w-full rounded-full bg-rose-500" />}
                     </span>
@@ -459,7 +597,11 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
         </div>
 
         {/* Side Panel: Selected Assignment details & Submission form (Col-span 5) */}
-        <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+        <div className={`lg:col-span-5 rounded-2xl border p-5 transition-colors space-y-4 ${
+          hwTheme === 'dark' 
+            ? 'bg-slate-900 border-slate-800 text-slate-100 shadow-xl' 
+            : 'bg-white border-slate-200 text-slate-900 shadow-sm'
+        }`}>
           
           {activeHomework ? (
             <>

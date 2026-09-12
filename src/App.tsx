@@ -4,10 +4,17 @@ import {
   Course, 
   Homework, 
   RLevel, 
+  ClockMode,
+  PromotionStatus,
+  PromotionRecord,
+  checkPromotionEligibility,
+  NEXT_R_LEVEL,
   PRELOADED_STUDENTS, 
   COURSES, 
   DEFAULT_HOMEWORKS, 
-  LEVEL_UP_XP 
+  LEVEL_UP_XP,
+  Mentor,
+  DEFAULT_MENTORS 
 } from './types';
 import Navbar from './components/Navbar';
 import DashboardView from './components/DashboardView';
@@ -23,7 +30,8 @@ import {
   setDoc, 
   updateDoc, 
   deleteDoc, 
-  writeBatch 
+  writeBatch,
+  deleteField
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 
@@ -45,22 +53,80 @@ export default function App() {
   const [customHomeworks, setCustomHomeworks] = useState<Homework[]>([]);
   const [logoError, setLogoError] = useState(false);
 
-  // NEW STATES: System Ongoing Month & R1-R4 Templates
+  // SYSTEM TIME & CLOCK STATES: Built-in Live Clock & Manual Setting
+  const [clockMode, setClockMode] = useState<ClockMode>('auto');
   const [systemOngoingMonth, setSystemOngoingMonth] = useState<number>(7);
   const [systemDateText, setSystemDateText] = useState<string>('2026-07-05');
+  const [currentLiveTime, setCurrentLiveTime] = useState<Date>(new Date());
   const [rLevelTemplates, setRLevelTemplates] = useState<Record<RLevel, string[]>>({
     R1: ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
     R2: ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
     R3: ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
-    R4: ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er']
+    R4: ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training']
   });
+  const [mentors, setMentors] = useState<Mentor[]>(DEFAULT_MENTORS);
 
-  const handleUpdateSystemTime = async (month: number, dateText: string) => {
+  // Ticking built-in clock every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentLiveTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Compute live real-time values
+  const liveYear = currentLiveTime.getFullYear();
+  const liveMonth = currentLiveTime.getMonth() + 1;
+  const liveDay = currentLiveTime.getDate();
+  const liveDateText = `${liveYear}-${String(liveMonth).padStart(2, '0')}-${String(liveDay).padStart(2, '0')}`;
+  const liveTimeText = currentLiveTime.toTimeString().split(' ')[0]; // HH:mm:ss
+
+  // Effective ongoing month and date: in auto mode, follows the built-in live clock; in manual mode, uses manual values
+  const effectiveOngoingMonth = clockMode === 'auto' ? liveMonth : systemOngoingMonth;
+  const effectiveDateText = clockMode === 'auto' ? liveDateText : systemDateText;
+
+  const handleUpdateSystemTime = async (month: number, dateText: string, mode?: ClockMode) => {
+    const targetMode = mode !== undefined ? mode : clockMode;
+    setSystemOngoingMonth(month);
+    setSystemDateText(dateText);
+    if (mode !== undefined) {
+      setClockMode(mode);
+    }
     try {
       await setDoc(doc(db, 'config', 'system'), {
         systemOngoingMonth: month,
-        systemDateText: dateText
+        systemDateText: dateText,
+        clockMode: targetMode
       }, { merge: true });
+      if (targetMode === 'manual') {
+        setXpBannerText(`已儲存手動設定時間：${dateText} (進行中：${month}月)`);
+        setShowXpBanner(true);
+        setTimeout(() => setShowXpBanner(false), 3000);
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'config/system');
+    }
+  };
+
+  const handleToggleClockMode = async (newMode: ClockMode) => {
+    setClockMode(newMode);
+    try {
+      const updatePayload: { clockMode: ClockMode; systemOngoingMonth?: number; systemDateText?: string } = {
+        clockMode: newMode
+      };
+      if (newMode === 'auto') {
+        updatePayload.systemOngoingMonth = liveMonth;
+        updatePayload.systemDateText = liveDateText;
+        setSystemOngoingMonth(liveMonth);
+        setSystemDateText(liveDateText);
+      }
+      await setDoc(doc(db, 'config', 'system'), updatePayload, { merge: true });
+      setXpBannerText(newMode === 'auto' 
+        ? `🟢 已切換為「內建即時時鐘」：目前為 ${liveMonth}月 (M${liveMonth})，系統隨真實時間自動運作` 
+        : `🟡 已切換為「手動設定時間」：您可以自由指定測試日期與進行月份`
+      );
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 3500);
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, 'config/system');
     }
@@ -105,7 +171,7 @@ export default function App() {
             R1: s.rLevel === 'R1' ? [...s.schedule] : ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
             R2: s.rLevel === 'R2' ? [...s.schedule] : ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
             R3: s.rLevel === 'R3' ? [...s.schedule] : ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
-            R4: s.rLevel === 'R4' ? [...s.schedule] : ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+            R4: s.rLevel === 'R4' ? [...s.schedule] : ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training'],
           }
         };
       }
@@ -153,6 +219,9 @@ export default function App() {
     const unsubscribeConfig = onSnapshot(doc(db, 'config', 'system'), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
+        if (data.clockMode !== undefined) {
+          setClockMode(data.clockMode);
+        }
         if (data.systemOngoingMonth !== undefined) {
           setSystemOngoingMonth(data.systemOngoingMonth);
         }
@@ -162,17 +231,22 @@ export default function App() {
         if (data.rLevelTemplates !== undefined) {
           setRLevelTemplates(data.rLevelTemplates);
         }
+        if (data.mentors !== undefined && Array.isArray(data.mentors) && data.mentors.length > 0) {
+          setMentors(data.mentors);
+        }
       } else {
         // Initialize default system config in Firestore
         try {
           setDoc(doc(db, 'config', 'system'), {
+            clockMode: 'auto',
             systemOngoingMonth: 7,
             systemDateText: '2026-07-05',
+            mentors: DEFAULT_MENTORS,
             rLevelTemplates: {
               R1: ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
               R2: ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
               R3: ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
-              R4: ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er']
+              R4: ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training']
             }
           });
         } catch (e) {
@@ -229,6 +303,11 @@ export default function App() {
   // Switch active resident
   const handleStudentChange = (id: string) => {
     setCurrentStudentId(id);
+    try {
+      localStorage.setItem('em_residents_current_student_id', id);
+    } catch {
+      // ignore storage errors
+    }
     setActiveTab('dashboard');
   };
 
@@ -440,7 +519,9 @@ export default function App() {
     xp: number,
     name?: string,
     rLevel?: RLevel,
-    admissionYear?: number
+    admissionYear?: number,
+    avatar?: string,
+    trainingStartDate?: string
   ) => {
     const s = students.find(x => x.id === studentId);
     if (!s) return;
@@ -448,7 +529,9 @@ export default function App() {
     try {
       const updateField: any = { level, xp };
       if (name !== undefined) updateField.name = name;
+      if (avatar !== undefined) updateField.avatar = avatar;
       if (admissionYear !== undefined) updateField.admissionYear = admissionYear;
+      if (trainingStartDate !== undefined) updateField.trainingStartDate = trainingStartDate;
       if (rLevel !== undefined && rLevel !== s.rLevel) {
         updateField.rLevel = rLevel;
         // Synchronize active schedule with their stored fourYearSchedules for the new year level!
@@ -460,11 +543,260 @@ export default function App() {
         }
       }
 
+      // Optimistically update local students state so UI reflects changes immediately
+      setStudents(prev => prev.map(student => {
+        if (student.id === studentId) {
+          return {
+            ...student,
+            ...updateField
+          };
+        }
+        return student;
+      }));
+
       await updateDoc(doc(db, 'students', studentId), updateField);
 
-      setXpBannerText(`[管理模式] 已成功更新住院醫師基本資訊與學習歷程！`);
+      setXpBannerText(`[管理模式] 已成功更新住院醫師【${name || s.name}】的基本資訊、頭像與學習歷程！`);
       setShowXpBanner(true);
       setTimeout(() => setShowXpBanner(false), 3000);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
+    }
+  };
+
+  // Update Resident Assigned Mentor
+  const handleUpdateMentor = async (studentId: string, mentorName: string, mentorTitle?: string) => {
+    try {
+      const updateData = { 
+        mentorName, 
+        mentorTitle: mentorTitle || '急診專科指導醫師' 
+      };
+
+      setStudents(prev => prev.map(s => s.id === studentId ? { ...s, ...updateData } : s));
+      await updateDoc(doc(db, 'students', studentId), updateData);
+
+      setXpBannerText(`已為住院醫師設定專屬指導導師：${mentorName} (${mentorTitle || '急診專科指導醫師'})`);
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 3500);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
+    }
+  };
+
+  // Resident Action: Apply for Promotion
+  const handleApplyPromotion = async (studentId: string, notes?: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    const eligibility = checkPromotionEligibility(student);
+    if (!eligibility.isOneYearCompleted) {
+      setXpBannerText(`[無法送出] 尚未完成全階段規定之訓練！${eligibility.missingReasons.join('，')}`);
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 5000);
+      return;
+    }
+
+    if (!eligibility.nextRLevel) {
+      setXpBannerText('該醫師已為最高層級 (R4)，無需申請晉級！');
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 3000);
+      return;
+    }
+
+    try {
+      const promotionStatus: PromotionStatus = {
+        status: 'pending',
+        requestedRLevel: eligibility.nextRLevel,
+        appliedAt: new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' }),
+        notes: notes || '已修畢全年度 12 個月臨床輪訓與常規評量，申請晉級。'
+      };
+
+      setStudents(prev => prev.map(s => s.id === studentId ? { ...s, promotionStatus } : s));
+      await updateDoc(doc(db, 'students', studentId), { promotionStatus });
+
+      setXpBannerText(`已成功向急診醫學科教學導師送出【${eligibility.currentRLevel} 升等 ${eligibility.nextRLevel}】審查申請！請靜候導師審核。`);
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 4500);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
+    }
+  };
+
+  // Teacher Action: Approve or Reject Promotion
+  const handleApprovePromotion = async (studentId: string, approved: boolean, feedback?: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    const eligibility = checkPromotionEligibility(student);
+
+    if (approved) {
+      // Strictly enforce 1-year training requirement!
+      if (!eligibility.isOneYearCompleted) {
+        setXpBannerText(`[核准失敗] 該學員尚未完成全階段規定訓練月份，不符晉升條件！`);
+        setShowXpBanner(true);
+        setTimeout(() => setShowXpBanner(false), 4500);
+        return;
+      }
+
+      const targetLevel = eligibility.nextRLevel;
+      if (!targetLevel) return;
+
+      try {
+        const todayStr = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const newRecord: PromotionRecord = {
+          fromLevel: student.rLevel,
+          toLevel: targetLevel,
+          approvedAt: todayStr,
+          approvedBy: '急診醫學部教學指導導師',
+          academicYear: student.admissionYear,
+          feedback: feedback || '通過全年度 12 個月輪訓與常規作業審核，臨床核心能力達標，准予晉級。'
+        };
+
+        const targetSchedule = student.fourYearSchedules?.[targetLevel] || rLevelTemplates[targetLevel] || Array(12).fill('adult-er');
+        const bonusXp = 300;
+        let nextXp = student.xp + bonusXp;
+        let nextLevel = student.level + 1;
+
+        const updatedPromotionStatus: PromotionStatus = {
+          status: 'approved',
+          requestedRLevel: targetLevel,
+          approvedAt: todayStr,
+          approvedBy: '急診醫學部教學指導導師',
+          feedback: feedback || '通過全年度 12 個月輪訓審核，准予晉級。'
+        };
+
+        const updatedHistory = [...(student.promotionHistory || []), newRecord];
+
+        const updateField: any = {
+          rLevel: targetLevel,
+          schedule: [...targetSchedule],
+          xp: nextXp,
+          level: nextLevel,
+          promotionStatus: updatedPromotionStatus,
+          promotionHistory: updatedHistory
+        };
+
+        setStudents(prev => prev.map(s => s.id === studentId ? { ...s, ...updateField } : s));
+        await updateDoc(doc(db, 'students', studentId), updateField);
+
+        // Trigger celebratory banner / level-up modal
+        setLevelUpData({
+          studentName: student.name,
+          oldLevel: student.level,
+          newLevel: nextLevel
+        });
+        setShowLevelUpModal(true);
+
+        setXpBannerText(`🎉【導師核准晉級】已成功核准 ${student.name} 醫師自 ${student.rLevel} 晉升為 ${targetLevel} 住院醫師！並核發晉級獎勵 +${bonusXp} XP！`);
+        setShowXpBanner(true);
+        setTimeout(() => setShowXpBanner(false), 5000);
+      } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
+      }
+    } else {
+      // Rejection / Require remedial training
+      try {
+        const updatedPromotionStatus: PromotionStatus = {
+          status: 'rejected',
+          requestedRLevel: eligibility.nextRLevel || undefined,
+          rejectionReason: feedback || '未達晉級標準或需補足相關臨床訓練，請與指導導師面談。'
+        };
+
+        setStudents(prev => prev.map(s => s.id === studentId ? { ...s, promotionStatus: updatedPromotionStatus } : s));
+        await updateDoc(doc(db, 'students', studentId), { promotionStatus: updatedPromotionStatus });
+
+        setXpBannerText(`已退回 ${student.name} 醫師的升等申請（要求補足訓練）。`);
+        setShowXpBanner(true);
+        setTimeout(() => setShowXpBanner(false), 3500);
+      } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
+      }
+    }
+  };
+
+  // Update Mentors List in system config
+  const handleUpdateMentors = async (newMentors: Mentor[]) => {
+    setMentors(newMentors);
+    try {
+      await setDoc(doc(db, 'config', 'system'), {
+        mentors: newMentors
+      }, { merge: true });
+      setXpBannerText(`已更新急診專科臨床指導導師名冊 (共 ${newMentors.length} 位導師)！`);
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 3000);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'config/system');
+    }
+  };
+
+  // Resident or Teacher Action: Cancel pending promotion application
+  const handleCancelPromotion = async (studentId: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    try {
+      setStudents(prev => prev.map(s => s.id === studentId ? { ...s, promotionStatus: undefined } : s));
+      await updateDoc(doc(db, 'students', studentId), {
+        promotionStatus: deleteField()
+      });
+
+      setXpBannerText(`已取消 ${student.name} 醫師之晉升審查申請。`);
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 3500);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
+    }
+  };
+
+  // Teacher or Resident Action: Revert / Cancel approved promotion (Rollback to previous R level)
+  const handleRevertPromotion = async (studentId: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    const history = [...(student.promotionHistory || [])];
+    let prevRLevel: RLevel = 'R1';
+    let lastRecord: PromotionRecord | undefined;
+
+    if (history.length > 0) {
+      lastRecord = history.pop();
+      prevRLevel = (lastRecord?.fromLevel as RLevel) || 'R1';
+    } else {
+      if (student.rLevel === 'R4') prevRLevel = 'R3';
+      else if (student.rLevel === 'R3') prevRLevel = 'R2';
+      else if (student.rLevel === 'R2') prevRLevel = 'R1';
+      else prevRLevel = 'R1';
+    }
+
+    try {
+      const targetSchedule = student.fourYearSchedules?.[prevRLevel] || rLevelTemplates[prevRLevel] || Array(12).fill('adult-er');
+      const bonusXp = 300;
+      const nextXp = Math.max(0, student.xp - bonusXp);
+      const nextLevel = Math.max(1, student.level - 1);
+
+      const updateFields: any = {
+        rLevel: prevRLevel,
+        schedule: [...targetSchedule],
+        xp: nextXp,
+        level: nextLevel,
+        promotionStatus: deleteField(),
+        promotionHistory: history
+      };
+
+      setStudents(prev => prev.map(s => s.id === studentId ? { 
+        ...s, 
+        rLevel: prevRLevel, 
+        schedule: [...targetSchedule], 
+        xp: nextXp, 
+        level: nextLevel, 
+        promotionStatus: undefined, 
+        promotionHistory: history 
+      } : s));
+
+      await updateDoc(doc(db, 'students', studentId), updateFields);
+
+      setXpBannerText(`已成功取消晉升，${student.name} 醫師已回復為 ${prevRLevel} 住院醫師職級。`);
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 4500);
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
     }
@@ -585,19 +917,62 @@ export default function App() {
 
   const handleAddStudent = async (newStudent: Student) => {
     try {
-      const studentWith4Year = {
+      const studentWith4Year: Student = {
         ...newStudent,
         fourYearSchedules: newStudent.fourYearSchedules || {
           R1: newStudent.rLevel === 'R1' ? [...newStudent.schedule] : ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
           R2: newStudent.rLevel === 'R2' ? [...newStudent.schedule] : ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
           R3: newStudent.rLevel === 'R3' ? [...newStudent.schedule] : ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
-          R4: newStudent.rLevel === 'R4' ? [...newStudent.schedule] : ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+          R4: newStudent.rLevel === 'R4' ? [...newStudent.schedule] : ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training'],
         }
       };
-      await setDoc(doc(db, 'students', newStudent.id), studentWith4Year);
+
+      // Optimistically add to local students array so user sees it right away
+      setStudents(prev => {
+        const filtered = prev.filter(s => s.id !== newStudent.id);
+        return [...filtered, studentWith4Year];
+      });
       setCurrentStudentId(newStudent.id);
+
+      await setDoc(doc(db, 'students', newStudent.id), studentWith4Year);
+
+      setXpBannerText(`已成功新增住院醫師【${newStudent.name}】(${newStudent.rLevel})！`);
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 3500);
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, 'students/' + newStudent.id);
+    }
+  };
+
+  const handleToggleCurriculumItem = async (studentId: string, itemId: string, completed: boolean) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    try {
+      const nextCompleted = {
+        ...(student.curriculumCompleted || {}),
+        [itemId]: completed
+      };
+
+      setStudents(prev => prev.map(s => {
+        if (s.id === studentId) {
+          return {
+            ...s,
+            curriculumCompleted: nextCompleted
+          };
+        }
+        return s;
+      }));
+
+      await updateDoc(doc(db, 'students', studentId), {
+        curriculumCompleted: nextCompleted
+      });
+
+      setXpBannerText(completed ? '已標記完成核心建議課程項目！' : '已取消完成標記。');
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 2000);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
     }
   };
 
@@ -637,6 +1012,10 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onToggleSidebar={() => setIsSidebarOpen(true)}
+        systemOngoingMonth={effectiveOngoingMonth}
+        systemDateText={effectiveDateText}
+        clockMode={clockMode}
+        currentTimeText={liveTimeText}
       />
 
       {/* Left Margin Quick Link Hover Edge Trigger */}
@@ -703,7 +1082,13 @@ export default function App() {
               ) : currentStudent ? (
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2">
-                    <span className="text-base">{currentStudent.avatar && currentStudent.avatar.startsWith('data:') ? '👤' : (currentStudent.avatar || '👨‍⚕️')}</span>
+                    <div className="h-6 w-6 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden shrink-0 border border-slate-600 text-xs">
+                      {currentStudent.avatar && (currentStudent.avatar.startsWith('data:') || currentStudent.avatar.startsWith('http')) ? (
+                        <img src={currentStudent.avatar} alt={currentStudent.name} referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+                      ) : (
+                        <span>{currentStudent.avatar || '👨‍⚕️'}</span>
+                      )}
+                    </div>
                     <span className="text-xs font-black text-white">{currentStudent.name} 醫師</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400">
@@ -826,12 +1211,21 @@ export default function App() {
             onModifyDeleteSubmission={handleModifyDeleteSubmission}
             onAddStudent={handleAddStudent}
             onDeleteStudent={handleDeleteStudent}
-            systemOngoingMonth={systemOngoingMonth}
-            systemDateText={systemDateText}
+            systemOngoingMonth={effectiveOngoingMonth}
+            systemDateText={effectiveDateText}
+            clockMode={clockMode}
+            currentTimeText={liveTimeText}
             onUpdateSystemTime={handleUpdateSystemTime}
+            onToggleClockMode={handleToggleClockMode}
             rLevelTemplates={rLevelTemplates}
             onUpdateRLevelTemplates={handleUpdateRLevelTemplates}
             onApplyRLevelTemplateToAll={handleApplyRLevelTemplateToAll}
+            onApprovePromotion={handleApprovePromotion}
+            onCancelPromotion={handleCancelPromotion}
+            onRevertPromotion={handleRevertPromotion}
+            onUpdateMentor={handleUpdateMentor}
+            mentors={mentors}
+            onUpdateMentors={handleUpdateMentors}
           />
         ) : (
           // 2. Student Resident Active View
@@ -842,8 +1236,16 @@ export default function App() {
                 <DashboardView 
                   student={currentStudent} 
                   onTabChange={setActiveTab} 
-                  systemOngoingMonth={systemOngoingMonth}
-                  systemDateText={systemDateText}
+                  systemOngoingMonth={effectiveOngoingMonth}
+                  systemDateText={effectiveDateText}
+                  clockMode={clockMode}
+                  currentTimeText={liveTimeText}
+                  onToggleCurriculumItem={handleToggleCurriculumItem}
+                  onApplyPromotion={handleApplyPromotion}
+                  onCancelPromotion={handleCancelPromotion}
+                  onRevertPromotion={handleRevertPromotion}
+                  onUpdateMentor={handleUpdateMentor}
+                  mentors={mentors}
                 />
               )}
 
@@ -852,8 +1254,10 @@ export default function App() {
                   student={currentStudent} 
                   onUpdateStatus={handleUpdateStatus} 
                   onMarkRolled={handleMarkRolled}
-                  systemOngoingMonth={systemOngoingMonth}
-                  systemDateText={systemDateText}
+                  systemOngoingMonth={effectiveOngoingMonth}
+                  systemDateText={effectiveDateText}
+                  clockMode={clockMode}
+                  currentTimeText={liveTimeText}
                 />
               )}
 

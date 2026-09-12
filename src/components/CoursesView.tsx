@@ -29,15 +29,138 @@ interface CoursesViewProps {
   ) => void;
 }
 
-const CATEGORIES: { id: CourseCategory; name: string; icon: React.ReactNode }[] = [
-  { id: 'ultrasound', name: '急診超音波學', icon: <Waves className="h-4 w-4 text-sky-500" /> },
-  { id: 'toxicology', name: '臨床毒物學', icon: <Skull className="h-4 w-4 text-emerald-500" /> },
-  { id: 'disaster', name: '災難醫學', icon: <ShieldAlert className="h-4 w-4 text-rose-500" /> },
-  { id: 'ems', name: '緊急救護 (EMS)', icon: <Ambulance className="h-4 w-4 text-indigo-500" /> },
-  { id: 'triage', name: '五級檢傷分類', icon: <Activity className="h-4 w-4 text-teal-500" /> },
-  { id: 'assessment', name: '能力進展評量', icon: <Heart className="h-4 w-4 text-purple-500" /> },
-  { id: 'geriatrics', name: '高齡急診學', icon: <AlertTriangle className="h-4 w-4 text-amber-500" /> },
+interface CategoryTheme {
+  id: CourseCategory;
+  name: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+  cardBorder: string;
+  cardBgHover: string;
+  cardLightBg: string;
+  iconBg: string;
+  iconColor: string;
+  accentBar: string;
+  icon: React.ReactNode;
+}
+
+const CATEGORIES: CategoryTheme[] = [
+  { 
+    id: 'ultrasound', 
+    name: '急診超音波學 (Ultrasound)', 
+    badgeBg: 'bg-emerald-100', 
+    badgeText: 'text-emerald-900', 
+    badgeBorder: 'border-emerald-300',
+    cardBorder: 'border-emerald-200',
+    cardBgHover: 'hover:border-emerald-400',
+    cardLightBg: 'bg-emerald-50/15',
+    iconBg: 'bg-emerald-50 text-emerald-700',
+    iconColor: 'text-emerald-600',
+    accentBar: 'bg-emerald-500',
+    icon: <Waves className="h-4 w-4 text-emerald-600" /> 
+  },
+  { 
+    id: 'toxicology', 
+    name: '臨床毒物學 (Toxicology)', 
+    badgeBg: 'bg-indigo-100', 
+    badgeText: 'text-indigo-900', 
+    badgeBorder: 'border-indigo-300',
+    cardBorder: 'border-indigo-200',
+    cardBgHover: 'hover:border-indigo-400',
+    cardLightBg: 'bg-indigo-50/15',
+    iconBg: 'bg-indigo-50 text-indigo-700',
+    iconColor: 'text-indigo-600',
+    accentBar: 'bg-indigo-500',
+    icon: <Skull className="h-4 w-4 text-indigo-600" /> 
+  },
+  { 
+    id: 'disaster', 
+    name: '災難醫學 (Disaster)', 
+    badgeBg: 'bg-amber-100', 
+    badgeText: 'text-amber-900', 
+    badgeBorder: 'border-amber-300',
+    cardBorder: 'border-amber-200',
+    cardBgHover: 'hover:border-amber-400',
+    cardLightBg: 'bg-amber-50/15',
+    iconBg: 'bg-amber-50 text-amber-700',
+    iconColor: 'text-amber-600',
+    accentBar: 'bg-amber-500',
+    icon: <ShieldAlert className="h-4 w-4 text-amber-600" /> 
+  },
+  { 
+    id: 'ems', 
+    name: '緊急救護 (EMS)', 
+    badgeBg: 'bg-orange-100', 
+    badgeText: 'text-orange-900', 
+    badgeBorder: 'border-orange-300',
+    cardBorder: 'border-orange-200',
+    cardBgHover: 'hover:border-orange-400',
+    cardLightBg: 'bg-orange-50/15',
+    iconBg: 'bg-orange-50 text-orange-700',
+    iconColor: 'text-orange-600',
+    accentBar: 'bg-orange-500',
+    icon: <Ambulance className="h-4 w-4 text-orange-600" /> 
+  },
+  { 
+    id: 'triage', 
+    name: '五級檢傷分類 (TTAS)', 
+    badgeBg: 'bg-cyan-100', 
+    badgeText: 'text-cyan-900', 
+    badgeBorder: 'border-cyan-300',
+    cardBorder: 'border-cyan-200',
+    cardBgHover: 'hover:border-cyan-400',
+    cardLightBg: 'bg-cyan-50/15',
+    iconBg: 'bg-cyan-50 text-cyan-700',
+    iconColor: 'text-cyan-600',
+    accentBar: 'bg-cyan-500',
+    icon: <Activity className="h-4 w-4 text-cyan-600" /> 
+  },
+  { 
+    id: 'assessment', 
+    name: '能力進展評量 (Milestone)', 
+    badgeBg: 'bg-blue-100', 
+    badgeText: 'text-blue-900', 
+    badgeBorder: 'border-blue-300',
+    cardBorder: 'border-blue-200',
+    cardBgHover: 'hover:border-blue-400',
+    cardLightBg: 'bg-blue-50/15',
+    iconBg: 'bg-blue-50 text-blue-700',
+    iconColor: 'text-blue-600',
+    accentBar: 'bg-blue-500',
+    icon: <Heart className="h-4 w-4 text-blue-600" /> 
+  },
+  { 
+    id: 'geriatrics', 
+    name: '高齡急診學 (Geriatrics)', 
+    badgeBg: 'bg-teal-100', 
+    badgeText: 'text-teal-900', 
+    badgeBorder: 'border-teal-300',
+    cardBorder: 'border-teal-200',
+    cardBgHover: 'hover:border-teal-400',
+    cardLightBg: 'bg-teal-50/15',
+    iconBg: 'bg-teal-50 text-teal-700',
+    iconColor: 'text-teal-600',
+    accentBar: 'bg-teal-500',
+    icon: <AlertTriangle className="h-4 w-4 text-teal-600" /> 
+  },
 ];
+
+const getCategoryTheme = (category: CourseCategory): CategoryTheme => {
+  return CATEGORIES.find(cat => cat.id === category) || {
+    id: category,
+    name: category,
+    badgeBg: 'bg-slate-100',
+    badgeText: 'text-slate-800',
+    badgeBorder: 'border-slate-200',
+    cardBorder: 'border-slate-200',
+    cardBgHover: 'hover:border-slate-300',
+    cardLightBg: 'bg-white',
+    iconBg: 'bg-slate-100 text-slate-700',
+    iconColor: 'text-slate-600',
+    accentBar: 'bg-slate-400',
+    icon: <FileText className="h-4 w-4 text-slate-500" />
+  };
+};
 
 export default function CoursesView({ student, onUpdateStatus }: CoursesViewProps) {
   const [selectedCategory, setSelectedCategory] = useState<CourseCategory | 'all'>('all');
@@ -117,28 +240,66 @@ export default function CoursesView({ student, onUpdateStatus }: CoursesViewProp
         </div>
 
         {/* Global search & category tabs */}
-        <div className="flex flex-col sm:flex-row gap-3 pt-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="搜尋學會必修項目名稱或課程內容..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-4 py-2 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none"
-            />
+        <div className="space-y-3 pt-2">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="搜尋學會必修項目名稱或課程內容..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-4 py-2 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value as CourseCategory | 'all')}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 focus:outline-none font-bold"
+            >
+              <option value="all">所有類別 (All Categories)</option>
+              {CATEGORIES.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
           </div>
 
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value as CourseCategory | 'all')}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 focus:outline-none"
-          >
-            <option value="all">所有類別 (All Categories)</option>
-            {CATEGORIES.map(cat => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-          </select>
+          {/* Quick Domain Color Filter Pills */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-1">
+            <span className="text-[11px] font-bold text-slate-400 mr-1">領域快捷：</span>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('all')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                selectedCategory === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              全部 ({applicableCourses.length})
+            </button>
+            {CATEGORIES.map(cat => {
+              const count = applicableCourses.filter(c => c.category === cat.id).length;
+              const isSelected = selectedCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(isSelected ? 'all' : cat.id)}
+                  className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                    isSelected
+                      ? `${cat.badgeBg} ${cat.badgeText} ${cat.badgeBorder} ring-2 ring-indigo-400/50 shadow-xs font-black`
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="shrink-0">{cat.icon}</span>
+                  <span>{cat.name.split(' ')[0]}</span>
+                  <span className="text-[10px] opacity-75 font-mono">({count})</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -149,7 +310,7 @@ export default function CoursesView({ student, onUpdateStatus }: CoursesViewProp
           <div>
             <span className="font-extrabold block">⚠️ 115 訓練年度急診住院醫師高齡新制必修提醒</span>
             <p className="mt-0.5 text-amber-800/85">
-              依據最新急診專科訓練評鑑，自 115 訓練年度起住院醫師必須於訓練期間修習完畢 9 大項高齡急診線上課程（本頁面最下方，具備黃色標籤）。請在訓練空檔儘早至急診醫學會線上平台觀看並申報。
+              依據最新急診專科訓練評鑑，自 115 訓練年度起住院醫師必須於訓練期間修習完畢 9 大項高齡急診線上課程（標記為鴨羽綠/Teal標籤）。請在訓練空檔儘早至急診醫學會線上平台觀看並申報。
             </p>
           </div>
         </div>
@@ -161,7 +322,7 @@ export default function CoursesView({ student, onUpdateStatus }: CoursesViewProp
           <div>
             <span className="font-extrabold block">🚨 112-114 學年災難醫學核心時數提醒</span>
             <p className="mt-0.5 text-rose-800/85">
-              112學年度起收訓之急診住院醫師必修災難醫學項目，含初階訓練課程、毒化災/核災各 6 小時課程、聯合討論會 3 次以及不同型態災難演習 3 場。請記得填妥紙本災難評核表並在此處上傳證明以利核銷。
+              112學年度起收訓之急診住院醫師必修災難醫學項目，含初階訓練課程、毒化災/核災各 6 小時課程、聯合討論會 3 次以及不同型態災難演習 3 場（琥珀金色標籤）。請記得填妥紙本災難評核表並在此處上傳證明以利核銷。
             </p>
           </div>
         </div>
@@ -179,28 +340,33 @@ export default function CoursesView({ student, onUpdateStatus }: CoursesViewProp
           {filteredCourses.map((course) => {
             const status = student.courseStatus[course.id];
             const isSubmitting = submittingCourseId === course.id;
+            const catTheme = getCategoryTheme(course.category);
 
             return (
               <div 
                 key={course.id}
-                className={`rounded-xl border bg-white p-5 shadow-sm transition-all flex flex-col justify-between ${
+                className={`relative rounded-xl border bg-white p-5 shadow-sm transition-all flex flex-col justify-between overflow-hidden ${
                   status?.status === 'approved' 
-                    ? 'border-teal-200 bg-teal-50/10' 
+                    ? 'border-emerald-300 bg-emerald-50/15' 
                     : status?.status === 'pending'
-                    ? 'border-amber-200 bg-amber-50/10'
-                    : 'border-slate-200 hover:border-slate-300'
+                    ? 'border-amber-300 bg-amber-50/15'
+                    : `${catTheme.cardBorder} ${catTheme.cardBgHover} ${catTheme.cardLightBg}`
                 }`}
               >
-                
+                {/* Domain Top Accent Line matching Dashboard color */}
+                <div className={`absolute top-0 left-0 right-0 h-1.5 ${catTheme.accentBar}`} />
+
                 {/* Header */}
-                <div className="space-y-2">
+                <div className="space-y-2 pt-1">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[9px] font-extrabold bg-slate-100 border border-slate-200 text-slate-600 uppercase tracking-wide">
-                      {CATEGORIES.find(cat => cat.id === course.category)?.name || course.category}
+                    {/* Category Pill with exact Dashboard Domain Color */}
+                    <span className={`inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-black border shadow-2xs ${catTheme.badgeBg} ${catTheme.badgeText} ${catTheme.badgeBorder}`}>
+                      <span className="shrink-0">{catTheme.icon}</span>
+                      <span>{catTheme.name.split(' ')[0]}</span>
                     </span>
 
                     {/* RLevel Badge */}
-                    <span className="text-[9px] font-bold text-slate-400 font-mono">
+                    <span className="text-[10px] font-extrabold text-slate-500 font-mono bg-slate-100/90 border border-slate-200 px-2 py-0.5 rounded-md">
                       建議級數: {course.suggestedYear}
                     </span>
                   </div>
@@ -209,7 +375,7 @@ export default function CoursesView({ student, onUpdateStatus }: CoursesViewProp
                     {course.name}
                   </h3>
 
-                  <p className="text-xs text-slate-500 leading-relaxed min-h-[36px]">
+                  <p className="text-xs text-slate-600 leading-relaxed min-h-[36px]">
                     {course.description}
                   </p>
                 </div>

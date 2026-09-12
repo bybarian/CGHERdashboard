@@ -1,9 +1,31 @@
 export type RLevel = 'R1' | 'R2' | 'R3' | 'R4';
+export type ClockMode = 'auto' | 'manual';
+
+export interface PromotionRecord {
+  fromLevel: RLevel;
+  toLevel: RLevel;
+  approvedAt: string;
+  approvedBy: string;
+  academicYear: number;
+  feedback?: string;
+}
+
+export interface PromotionStatus {
+  status: 'none' | 'pending' | 'approved' | 'rejected';
+  requestedRLevel?: RLevel;
+  appliedAt?: string;
+  notes?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  feedback?: string;
+  rejectionReason?: string;
+}
 
 export interface Student {
   id: string;
   name: string;
   admissionYear: number; // 112, 113, 114, 115
+  trainingStartDate?: string; // 起訓日期，例如 '2026-08-01' 或 '115-08-01'
   rLevel: RLevel;
   xp: number;
   level: number;
@@ -15,7 +37,12 @@ export interface Student {
   rotationRolled?: Record<number, boolean>;          // key: month index (1-12)
   homeworkRolled?: Record<string, boolean>;          // key: homeworkId
   avatar?: string;
+  mentorName?: string; // 專屬臨床導師姓名
+  mentorTitle?: string; // 導師職稱 (例：急診專科主治醫師 / 教學副主任)
   currentOngoingMonth?: number;
+  curriculumCompleted?: Record<string, boolean>; // key: curriculum item id, e.g. 'echo-basic'
+  promotionStatus?: PromotionStatus;
+  promotionHistory?: PromotionRecord[];
 }
 
 export interface SubmissionStatus {
@@ -665,9 +692,12 @@ export const PRELOADED_STUDENTS: Student[] = [
     id: 'student-r1',
     name: '林大明',
     admissionYear: 115,
+    trainingStartDate: '2026-08-01',
     rLevel: 'R1',
     xp: 220,
     level: 1,
+    mentorName: '鍾睿元',
+    mentorTitle: '急診專任主治醫師 / 教學指導導師',
     schedule: ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
     rotationStatus: {
       1: { completed: true, notes: '學習了基礎成人急診檢傷分類與一般內外科急症處置。', fileUrl: 'certificate-placeholder', fileName: 'R1_Jan_ER_Certificate.pdf', status: 'approved', submittedAt: '2026-01-31' },
@@ -687,9 +717,12 @@ export const PRELOADED_STUDENTS: Student[] = [
     id: 'student-r2',
     name: '陳美玲',
     admissionYear: 114,
+    trainingStartDate: '2025-08-01',
     rLevel: 'R2',
     xp: 410,
     level: 3,
+    mentorName: '張昱',
+    mentorTitle: '急診專任主治醫師 / 教學指導導師',
     schedule: ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
     rotationStatus: {
       1: { completed: true, notes: '完成精神科訓練，精熟暴力病人鎮靜藥物與強制就醫流程。', fileUrl: 'certificate-placeholder', fileName: 'R2_Jan_Psych.pdf', status: 'approved', submittedAt: '2026-01-31' },
@@ -714,9 +747,12 @@ export const PRELOADED_STUDENTS: Student[] = [
     id: 'student-r3',
     name: '張建國',
     admissionYear: 113,
+    trainingStartDate: '2024-08-01',
     rLevel: 'R3',
     xp: 150,
     level: 5,
+    mentorName: '吳妍萱',
+    mentorTitle: '急診專任主治醫師 / 教學指導導師',
     schedule: ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
     rotationStatus: {
       1: { completed: true, notes: '毒物科第一個月，學習常見農藥與安眠藥物中毒處置。', fileUrl: 'certificate-placeholder', fileName: 'R3_Jan_Tox_Cert.pdf', status: 'approved', submittedAt: '2026-01-31' },
@@ -744,17 +780,20 @@ export const PRELOADED_STUDENTS: Student[] = [
     id: 'student-r4',
     name: '王小芬',
     admissionYear: 112,
+    trainingStartDate: '2023-08-01',
     rLevel: 'R4',
     xp: 350,
     level: 8,
-    schedule: ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+    mentorName: '李宥霆',
+    mentorTitle: '急診專任主治醫師 / 教學指導導師',
+    schedule: ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training'],
     rotationStatus: {
       1: { completed: true, notes: '擔任總醫師行政職，負責全科排班與行政客訴處理。', fileUrl: 'certificate-placeholder', fileName: 'R4_Jan_Admin_CR.pdf', status: 'approved', submittedAt: '2026-01-31' },
       2: { completed: true, notes: '總醫師第二個月，籌辦全科教學晨會與住院醫師模擬考。', fileUrl: 'certificate-placeholder', fileName: 'R4_Feb_CR_Teaching.pdf', status: 'approved', submittedAt: '2026-02-28' },
       3: { completed: true, notes: '補足MICU重症月數，熟習進階MICU整合治療。', fileUrl: 'certificate-placeholder', fileName: 'R4_Mar_MICU_Report.pdf', status: 'approved', submittedAt: '2026-03-31' },
       4: { completed: true, notes: '成人急診區，練習全區 flow control。', fileUrl: 'certificate-placeholder', fileName: 'R4_Apr_ER_Flow.pdf', status: 'approved', submittedAt: '2026-04-30' },
       5: { completed: true, notes: '成人急診區，精進急診急救室重症決策流程。', fileUrl: 'certificate-placeholder', fileName: 'R4_May_ER_Resus.pdf', status: 'approved', submittedAt: '2026-05-31' },
-      6: { completed: false, notes: '', fileUrl: '', fileName: '', status: 'pending' }
+      6: { completed: false, notes: '成人急診區，準備專科甄審口試與交接完訓。', fileUrl: '', fileName: '', status: 'pending' }
     },
     courseStatus: {
       'acls-ettc': { completed: true, notes: '持續維持證書效期內。', fileUrl: 'certificate-placeholder', fileName: 'ACLS_ETTC_R4.pdf', status: 'approved', submittedAt: '2026-01-10' }
@@ -764,7 +803,470 @@ export const PRELOADED_STUDENTS: Student[] = [
       'hw-r4-2': { completed: true, notes: '醫療行政爭議與客訴演練。', fileUrl: 'certificate-placeholder', fileName: 'R4_王小芬_2月作業.pdf', status: 'approved', submittedAt: '2026-02-24' },
       'hw-r4-3': { completed: true, notes: '科內讀書會簡報大綱與投影片。', fileUrl: 'certificate-placeholder', fileName: 'R4_王小芬_3月作業.pdf', status: 'approved', submittedAt: '2026-03-27' },
       'hw-r4-4': { completed: true, notes: '臨床指導學弟妹 Mini-CEX 回饋。', fileUrl: 'certificate-placeholder', fileName: 'R4_王小芬_4月作業.pdf', status: 'approved', submittedAt: '2026-04-25' },
-      'hw-r4-5': { completed: true, notes: 'Mini-CEX 自我評估與 RRC 評鑑檢核。', fileUrl: 'certificate-placeholder', fileName: 'R4_王小芬_5月作業.pdf', status: 'approved', submittedAt: '2026-05-26' }
+      'hw-r4-5': { completed: true, notes: 'Mini-CEX 自我評估與 RRC 評鑑檢核。', fileUrl: 'certificate-placeholder', fileName: 'R4_王小芬_5月作業.pdf', status: 'approved', submittedAt: '2026-05-26' },
+      'hw-r4-6': { completed: false, notes: '準備導師晤談紀錄與四年訓練總心得。', fileUrl: '', fileName: '', status: 'pending' }
     }
   }
 ];
+
+export interface RecommendedCurriculumItem {
+  id: string;
+  domain: string; // '超音波' | '毒物' | '災難' | 'EMS' | '檢傷' | '評量' | '高齡'
+  itemName: string;
+  requirement: string;
+  r1: '✓' | '→' | '';
+  r2: '✓' | '→' | '';
+  r3: '✓' | '→' | '';
+  r4: '✓' | '→' | '';
+  domainBg: string; // Header/badge background color
+  domainText: string; // Text color
+  rowBg: string; // Row tint
+  linkedCourseId?: string;
+  description?: string;
+}
+
+/**
+ * 各年級建議核心必修課程與進展清單 (R1-R4 Recommended Curriculum & Milestones Matrix)
+ * Directly matching the official emergency medicine resident milestone guidelines.
+ */
+export const RECOMMENDED_CURRICULUM_MATRIX: RecommendedCurriculumItem[] = [
+  // 1. 超音波
+  {
+    id: 'curr-echo-basic',
+    domain: '超音波',
+    itemName: '基礎超音波',
+    requirement: '1次',
+    r1: '✓',
+    r2: '',
+    r3: '',
+    r4: '',
+    domainBg: 'bg-emerald-100',
+    domainText: 'text-emerald-900',
+    rowBg: 'bg-emerald-50/40',
+    linkedCourseId: 'echo-basic',
+    description: '若PGY未完成需補上，經急診醫學會認證或合格訓練醫院辦理。'
+  },
+  {
+    id: 'curr-echo-adv',
+    domain: '超音波',
+    itemName: '進階超音波',
+    requirement: '1次',
+    r1: '',
+    r2: '✓',
+    r3: '',
+    r4: '',
+    domainBg: 'bg-emerald-100',
+    domainText: 'text-emerald-900',
+    rowBg: 'bg-emerald-50/40',
+    linkedCourseId: 'echo-adv',
+    description: '重症、血管通路、神經阻斷等急症進階超音波臨床應用。'
+  },
+  {
+    id: 'curr-echo-pocus',
+    domain: '超音波',
+    itemName: 'POCUS病例',
+    requirement: '80例',
+    r1: '→',
+    r2: '→',
+    r3: '→',
+    r4: '→',
+    domainBg: 'bg-emerald-100',
+    domainText: 'text-emerald-900',
+    rowBg: 'bg-emerald-50/40',
+    linkedCourseId: 'echo-80',
+    description: '涵蓋心臟、外傷、主動脈、肺部、膽囊、腎臟、深部靜脈等8大領域臨床影像累積。'
+  },
+
+  // 2. 毒物
+  {
+    id: 'curr-tox-cases',
+    domain: '毒物',
+    itemName: '中毒病例',
+    requirement: '12例',
+    r1: '→',
+    r2: '→',
+    r3: '→',
+    r4: '→',
+    domainBg: 'bg-indigo-100',
+    domainText: 'text-indigo-900',
+    rowBg: 'bg-indigo-50/40',
+    linkedCourseId: 'tox-12',
+    description: '照顧急性中毒病患、記錄解毒劑投藥與臨床病程追蹤。'
+  },
+  {
+    id: 'curr-tox-ails',
+    domain: '毒物',
+    itemName: 'AILS',
+    requirement: '1次',
+    r1: '',
+    r2: '✓',
+    r3: '',
+    r4: '',
+    domainBg: 'bg-indigo-100',
+    domainText: 'text-indigo-900',
+    rowBg: 'bg-indigo-50/40',
+    linkedCourseId: 'tox-ails',
+    description: '急診毒物中毒進階生命支持 (Advanced Intoxication Life Support) 認證課程。'
+  },
+
+  // 3. 災難
+  {
+    id: 'curr-disaster-basic',
+    domain: '災難',
+    itemName: '初階災難課程',
+    requirement: '1次',
+    r1: '✓',
+    r2: '',
+    r3: '',
+    r4: '',
+    domainBg: 'bg-amber-100',
+    domainText: 'text-amber-900',
+    rowBg: 'bg-amber-50/40',
+    linkedCourseId: 'dis-basic',
+    description: '大量傷患應變處置、事故指揮架構 (ICS) 概念。'
+  },
+  {
+    id: 'curr-disaster-chemical',
+    domain: '災難',
+    itemName: '毒化災',
+    requirement: '6 hr',
+    r1: '',
+    r2: '✓',
+    r3: '',
+    r4: '',
+    domainBg: 'bg-amber-100',
+    domainText: 'text-amber-900',
+    rowBg: 'bg-amber-50/40',
+    linkedCourseId: 'dis-chem',
+    description: '急診醫學會認證之 6 小時毒化災應變與防護培訓。'
+  },
+  {
+    id: 'curr-disaster-nuclear',
+    domain: '災難',
+    itemName: '核災',
+    requirement: '6 hr',
+    r1: '',
+    r2: '',
+    r3: '✓',
+    r4: '',
+    domainBg: 'bg-amber-100',
+    domainText: 'text-amber-900',
+    rowBg: 'bg-amber-50/40',
+    linkedCourseId: 'dis-nuclear',
+    description: '輻射傷害醫療與 6 小時核災應變醫療認證。'
+  },
+  {
+    id: 'curr-disaster-other',
+    domain: '災難',
+    itemName: '其他認證課程',
+    requirement: '6 hr',
+    r1: '',
+    r2: '',
+    r3: '✓',
+    r4: '',
+    domainBg: 'bg-amber-100',
+    domainText: 'text-amber-900',
+    rowBg: 'bg-amber-50/40',
+    linkedCourseId: 'dis-other',
+    description: '特殊災害、反恐醫療或野外緊急醫療相關認證課程。'
+  },
+  {
+    id: 'curr-disaster-joint',
+    domain: '災難',
+    itemName: '聯合討論會',
+    requirement: '3次',
+    r1: '→',
+    r2: '→',
+    r3: '→',
+    r4: '→',
+    domainBg: 'bg-amber-100',
+    domainText: 'text-amber-900',
+    rowBg: 'bg-amber-50/40',
+    description: '院際或區域緊急醫療應變跨單位聯合討論會。'
+  },
+  {
+    id: 'curr-disaster-drill',
+    domain: '災難',
+    itemName: '演習',
+    requirement: '3場',
+    r1: '→',
+    r2: '→',
+    r3: '→',
+    r4: '→',
+    domainBg: 'bg-amber-100',
+    domainText: 'text-amber-900',
+    rowBg: 'bg-amber-50/40',
+    description: '實兵演習、院內/院外大型傷患應變演練實務參與。'
+  },
+
+  // 4. EMS
+  {
+    id: 'curr-ems-course',
+    domain: 'EMS',
+    itemName: 'EMS課程',
+    requirement: '1次',
+    r1: '✓',
+    r2: '',
+    r3: '',
+    r4: '',
+    domainBg: 'bg-orange-100',
+    domainText: 'text-orange-900',
+    rowBg: 'bg-orange-50/40',
+    linkedCourseId: 'ems-course',
+    description: '到院前緊急醫療救護體系與醫療指導基礎課程。'
+  },
+  {
+    id: 'curr-ems-ridealong',
+    domain: 'EMS',
+    itemName: '救護出勤',
+    requirement: '4件',
+    r1: '',
+    r2: '✓',
+    r3: '',
+    r4: '',
+    domainBg: 'bg-orange-100',
+    domainText: 'text-orange-900',
+    rowBg: 'bg-orange-50/40',
+    description: '隨同消防局救護分隊隨車出勤第一線救護任務。'
+  },
+  {
+    id: 'curr-ems-dispatch',
+    domain: 'EMS',
+    itemName: '救護派遣',
+    requirement: '2件',
+    r1: '',
+    r2: '✓',
+    r3: '',
+    r4: '',
+    domainBg: 'bg-orange-100',
+    domainText: 'text-orange-900',
+    rowBg: 'bg-orange-50/40',
+    description: '至 119 救災救護指揮中心實習線上派遣與線上醫療指導。'
+  },
+  {
+    id: 'curr-ems-case-discussion',
+    domain: 'EMS',
+    itemName: '案例討論',
+    requirement: '1件',
+    r1: '',
+    r2: '✓',
+    r3: '',
+    r4: '',
+    domainBg: 'bg-orange-100',
+    domainText: 'text-orange-900',
+    rowBg: 'bg-orange-50/40',
+    description: '到院前救護品質審查或 OHCA/重大創傷案例討論會報告。'
+  },
+
+  // 5. 檢傷
+  {
+    id: 'curr-triage-ttas',
+    domain: '檢傷',
+    itemName: 'TTAS',
+    requirement: '1次',
+    r1: '✓',
+    r2: '',
+    r3: '',
+    r4: '',
+    domainBg: 'bg-cyan-100',
+    domainText: 'text-cyan-900',
+    rowBg: 'bg-cyan-50/40',
+    linkedCourseId: 'ttas',
+    description: '急診五級檢傷分類系統 (Taiwan Triage and Acuity Scale) 認證。'
+  },
+
+  // 6. 評量
+  {
+    id: 'curr-eval-midterm',
+    domain: '評量',
+    itemName: '期中能力進展評量',
+    requirement: '依學會規定',
+    r1: '',
+    r2: '',
+    r3: '✓',
+    r4: '',
+    domainBg: 'bg-blue-100',
+    domainText: 'text-blue-900',
+    rowBg: 'bg-blue-50/40',
+    linkedCourseId: 'cbme-midterm',
+    description: '急診醫學會住院醫師里程碑 (Milestones) 與期中核心能力進展評核。'
+  },
+
+  // 7. 高齡
+  {
+    id: 'curr-geri-9',
+    domain: '高齡',
+    itemName: '高齡急診9課',
+    requirement: '9堂',
+    r1: '✓',
+    r2: '→',
+    r3: '',
+    r4: '',
+    domainBg: 'bg-teal-100',
+    domainText: 'text-teal-900',
+    rowBg: 'bg-teal-50/40',
+    linkedCourseId: 'geri-9',
+    description: '高齡急症評估、譫妄篩檢、多重用藥安全與全人照護核心九課。'
+  }
+];
+
+export const NEXT_R_LEVEL: Record<RLevel, RLevel | null> = {
+  'R1': 'R2',
+  'R2': 'R3',
+  'R3': 'R4',
+  'R4': null, // 已完成住院醫師四年全部訓練
+};
+
+export interface PromotionCheckResult {
+  currentRLevel: RLevel;
+  nextRLevel: RLevel | null;
+  isMaxLevel: boolean;
+  approvedRotationsCount: number;
+  totalRotationsRequired: number; // 12
+  isRotationsCompleted: boolean;
+  approvedHomeworksCount: number;
+  totalHomeworksRequired: number;
+  totalRequiredHomeworks: number; // Alias for backwards/UI compatibility
+  isHomeworksCompleted: boolean;
+  isOneYearCompleted: boolean;
+  isEligible: boolean; // Alias: isOneYearCompleted && !isMaxLevel
+  missingReasons: string[];
+  canApply: boolean;
+  isPending: boolean;
+  isApproved: boolean;
+}
+
+export const getApplicableMonthsForRLevel = (rLevel: string): number[] => {
+  switch (rLevel) {
+    case 'R1': return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    case 'R2':
+    case 'R3': return [1, 4, 7, 10];
+    // R4: 8-9月起訓，常規訓練至隔年6月完訓 (1~6月共6個月)
+    case 'R4': return [1, 2, 3, 4, 5, 6];
+    default: return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+  }
+};
+
+export function checkPromotionEligibility(student: Student): PromotionCheckResult {
+  const currentRLevel = student.rLevel;
+  const nextRLevel = NEXT_R_LEVEL[currentRLevel];
+  const isMaxLevel = nextRLevel === null;
+
+  // 1. Check rotations: 12 months approved (for R4: 6 months up to June)
+  const totalRotationsRequired = currentRLevel === 'R4' ? 6 : 12;
+  let approvedRotationsCount = 0;
+  for (let m = 1; m <= totalRotationsRequired; m++) {
+    if (student.rotationStatus && student.rotationStatus[m]?.status === 'approved') {
+      approvedRotationsCount++;
+    }
+  }
+  const isRotationsCompleted = approvedRotationsCount >= totalRotationsRequired;
+
+  // 2. Check homeworks for current R-level
+  const applicableMonths = getApplicableMonthsForRLevel(currentRLevel);
+  const totalHomeworksRequired = applicableMonths.length;
+  let approvedHomeworksCount = 0;
+  for (const m of applicableMonths) {
+    const hwId = `hw-${currentRLevel.toLowerCase()}-${m}`;
+    if (student.homeworkStatus && student.homeworkStatus[hwId]?.status === 'approved') {
+      approvedHomeworksCount++;
+    }
+  }
+  const isHomeworksCompleted = approvedHomeworksCount >= totalHomeworksRequired;
+
+  // 3. One year of training condition
+  const isOneYearCompleted = isRotationsCompleted && isHomeworksCompleted;
+  const isEligible = isOneYearCompleted && !isMaxLevel;
+
+  const missingReasons: string[] = [];
+  if (!isRotationsCompleted) {
+    missingReasons.push(`${totalRotationsRequired} 個月科別輪訓尚缺 ${totalRotationsRequired - approvedRotationsCount} 個月份未審核核准 (目前完成 ${approvedRotationsCount}/${totalRotationsRequired} 個月)`);
+  }
+  if (!isHomeworksCompleted) {
+    missingReasons.push(`全年度作業與定期評量尚缺 ${totalHomeworksRequired - approvedHomeworksCount} 項未審核通過 (目前完成 ${approvedHomeworksCount}/${totalHomeworksRequired} 項)`);
+  }
+
+  const isPending = student.promotionStatus?.status === 'pending';
+  const isApproved = student.promotionStatus?.status === 'approved';
+  const canApply = !isMaxLevel && isOneYearCompleted && !isPending;
+
+  return {
+    currentRLevel,
+    nextRLevel,
+    isMaxLevel,
+    approvedRotationsCount,
+    totalRotationsRequired,
+    isRotationsCompleted,
+    approvedHomeworksCount,
+    totalHomeworksRequired,
+    totalRequiredHomeworks: totalHomeworksRequired,
+    isHomeworksCompleted,
+    isOneYearCompleted,
+    isEligible,
+    missingReasons,
+    canApply,
+    isPending,
+    isApproved
+  };
+}
+
+export interface Mentor {
+  id?: string;
+  name: string;
+  title: string;
+  specialty?: string;
+}
+
+export const DEFAULT_MENTORS: Mentor[] = [
+  { id: 'm1', name: '鍾睿元', title: '急診專任主治醫師 / 教學指導導師', specialty: '急診醫學、臨床重症加護' },
+  { id: 'm2', name: '張昱', title: '急診專任主治醫師 / 教學指導導師', specialty: '急診醫學、臨床超音波 (POCUS)' },
+  { id: 'm3', name: '吳妍萱', title: '急診專任主治醫師 / 教學指導導師', specialty: '急診醫學、災難防護與 EMS' },
+  { id: 'm4', name: '李宥霆', title: '急診專任主治醫師 / 教學指導導師', specialty: '兒科急診、臨床毒物急症' }
+];
+
+export interface CurriculumReminderItem {
+  item: RecommendedCurriculumItem;
+  isDesignatedForCurrentLevel: boolean; // '✓' in this level
+  isContinuous: boolean; // '→' continuous cross-level
+  isCompleted: boolean;
+}
+
+export function getCurriculumReminders(student: Student) {
+  const rKey = student.rLevel.toLowerCase() as 'r1' | 'r2' | 'r3' | 'r4';
+  
+  const relevantItems: CurriculumReminderItem[] = [];
+
+  RECOMMENDED_CURRICULUM_MATRIX.forEach(item => {
+    const mark = item[rKey];
+    if (mark === '✓' || mark === '→') {
+      const isLinkedCourseApproved = Boolean(item.linkedCourseId && student.courseStatus?.[item.linkedCourseId]?.status === 'approved');
+      const isExplicitCompleted = Boolean(student.curriculumCompleted?.[item.id]);
+      const isCompleted = isLinkedCourseApproved || isExplicitCompleted;
+
+      relevantItems.push({
+        item,
+        isDesignatedForCurrentLevel: mark === '✓',
+        isContinuous: mark === '→',
+        isCompleted
+      });
+    }
+  });
+
+  const completedCount = relevantItems.filter(x => x.isCompleted).length;
+  const totalCount = relevantItems.length;
+  const pendingItems = relevantItems.filter(x => !x.isCompleted);
+  const designatedItems = relevantItems.filter(x => x.isDesignatedForCurrentLevel);
+  const designatedCompletedCount = designatedItems.filter(x => x.isCompleted).length;
+
+  return {
+    relevantItems,
+    completedCount,
+    totalCount,
+    pendingItems,
+    designatedItems,
+    designatedCompletedCount,
+    completionPercent: totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 100
+  };
+}
+
+
