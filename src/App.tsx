@@ -1065,9 +1065,9 @@ export default function App() {
                   <Activity className="h-5 w-5 animate-pulse" />
                 )}
               </div>
-              <div>
-                <span className="block text-[10px] font-black tracking-wider text-teal-400">國泰綜合醫院急診部</span>
-                <span className="text-xs font-black text-slate-200">電子輔助訓練系統</span>
+              <div className="whitespace-nowrap shrink-0">
+                <span className="block text-[10px] font-black tracking-wider text-teal-400 whitespace-nowrap">國泰綜合醫院急診部</span>
+                <span className="text-xs font-black text-slate-200 whitespace-nowrap">電子輔助訓練系統</span>
               </div>
             </div>
 
@@ -1273,6 +1273,10 @@ export default function App() {
                   student={currentStudent} 
                   onUpdateStatus={handleUpdateStatus} 
                   onMarkRolled={handleMarkRolled}
+                  systemOngoingMonth={effectiveOngoingMonth}
+                  systemDateText={effectiveDateText}
+                  clockMode={clockMode}
+                  currentTimeText={liveTimeText}
                 />
               )}
 

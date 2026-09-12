@@ -81,17 +81,17 @@ export default function Navbar({
       <div className="mx-auto flex max-w-7xl h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
         
         {/* Logo & Department */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
           {onToggleSidebar && (
             <button
               onClick={onToggleSidebar}
-              className="mr-1 p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer"
+              className="mr-0.5 sm:mr-1 p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shrink-0"
               title="開啟左側導覽地圖/選單"
             >
               <Menu className="h-5 w-5" />
             </button>
           )}
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md shadow-teal-100 overflow-hidden">
+          <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md shadow-teal-100 overflow-hidden">
             {!logoError ? (
               <img 
                 src={`${import.meta.env.BASE_URL}logo.png`} 
@@ -104,15 +104,19 @@ export default function Navbar({
               <Activity className="h-5 w-5 animate-pulse" />
             )}
           </div>
-          <div>
-            <span className="block text-xs font-semibold tracking-wider text-teal-600 font-display">國泰綜合醫院急診醫學部電子輔助訓練系統</span>
-            <span className="text-[11px] font-black text-slate-700 font-display sm:text-xs">CGH ER Digital Augmented Training System</span>
+          <div className="flex flex-col justify-center whitespace-nowrap shrink-0 select-none">
+            <span className="block text-[11px] sm:text-xs md:text-sm font-bold tracking-tight text-teal-600 font-display whitespace-nowrap leading-tight">
+              國泰綜合醫院急診醫學部電子輔助訓練系統
+            </span>
+            <span className="block text-[9px] sm:text-[10px] md:text-[11px] font-black text-slate-700 font-display whitespace-nowrap leading-tight mt-0.5">
+              CGH ER Digital Augmented Training System
+            </span>
           </div>
         </div>
 
-        {/* Dynamic XP Progress & Info (Hidden for Teacher view) */}
+        {/* Dynamic XP Progress & Info (Hidden for Teacher view and compact screens) */}
         {!isTeacher && selectedStudent && (
-          <div className="hidden md:flex items-center space-x-6">
+          <div className="hidden lg:flex items-center space-x-4 xl:space-x-6 shrink-0 mx-2">
             {/* Student Info Badge */}
             <div className="flex items-center space-x-2 rounded-lg bg-slate-50 px-3 py-1 border border-slate-100">
               <span className="text-xs font-bold text-slate-500">訓練年度:</span>
@@ -148,7 +152,7 @@ export default function Navbar({
         )}
 
         {/* User Switching Controls & Upper-Right Clock */}
-        <div className="flex items-center space-x-2 sm:space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
           {/* Student Selector Dropdown (Hidden when teacher is active) */}
           {!isTeacher ? (
             <div className="relative">
@@ -157,9 +161,9 @@ export default function Navbar({
                 onClick={() => setShowStudentDropdown(!showStudentDropdown)}
                 className="flex items-center space-x-2 rounded-lg border border-slate-200 bg-white px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
               >
-                <span className="text-sm">
-                  {selectedStudent?.avatar && selectedStudent.avatar.startsWith('data:') ? (
-                    <img referrerPolicy="no-referrer" src={selectedStudent.avatar} alt="Avatar" className="h-4 w-4 rounded-full object-cover inline-block" />
+                <span className="text-sm flex items-center">
+                  {selectedStudent?.avatar && (selectedStudent.avatar.startsWith('data:') || selectedStudent.avatar.startsWith('http')) ? (
+                    <img referrerPolicy="no-referrer" src={selectedStudent.avatar} alt="Avatar" className="h-6 w-6 rounded-full object-cover inline-block ring-1 ring-teal-400" />
                   ) : (selectedStudent?.avatar || '👨‍⚕️')}
                 </span>
                 <span>{selectedStudent?.name} ({selectedStudent?.rLevel})</span>
@@ -188,9 +192,9 @@ export default function Navbar({
                       }`}
                     >
                       <span className="flex items-center space-x-1.5">
-                        <span className="text-sm">
-                          {student.avatar && student.avatar.startsWith('data:') ? (
-                            <img referrerPolicy="no-referrer" src={student.avatar} alt="Avatar" className="h-4 w-4 rounded-full object-cover inline-block" />
+                        <span className="text-sm flex items-center">
+                          {student.avatar && (student.avatar.startsWith('data:') || student.avatar.startsWith('http')) ? (
+                            <img referrerPolicy="no-referrer" src={student.avatar} alt="Avatar" className="h-5 w-5 rounded-full object-cover inline-block ring-1 ring-teal-300" />
                           ) : (student.avatar || '👨‍⚕️')}
                         </span>
                         <span>{student.name}</span>

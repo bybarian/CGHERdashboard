@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, 
   CheckCircle2, 
+  Check,
   Clock, 
   XCircle, 
   FileText, 
@@ -31,7 +32,7 @@ import {
   CloudLightning,
   ShieldAlert
 } from 'lucide-react';
-import { Student, Homework, DEFAULT_HOMEWORKS, MONTH_NAMES, MONTHLY_CHECKLISTS, DEPARTMENTS, getApplicableMonthsForRLevel } from '../types';
+import { Student, Homework, DEFAULT_HOMEWORKS, MONTH_NAMES, MONTHLY_CHECKLISTS, DEPARTMENTS, getApplicableMonthsForRLevel, ClockMode } from '../types';
 
 const getDeptIcon = (iconName: string) => {
   const className = "h-5 w-5";
@@ -75,9 +76,22 @@ interface HomeworkViewProps {
     bonusXp: number,
     message: string
   ) => void;
+  systemOngoingMonth?: number;
+  systemDateText?: string;
+  clockMode?: ClockMode;
+  currentTimeText?: string;
 }
 
-export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: HomeworkViewProps) {
+export default function HomeworkView({ 
+  student, 
+  onUpdateStatus, 
+  onMarkRolled,
+  systemOngoingMonth = 7,
+  systemDateText = '',
+  clockMode = 'auto',
+  currentTimeText = ''
+}: HomeworkViewProps) {
+  const currentMonthIndex = systemOngoingMonth;
   // Get applicable months based on R level frequency (R4 is 1-6 months up to June)
   const applicableMonths = getApplicableMonthsForRLevel(student.rLevel);
   const activeMonthsLimit = student.rLevel === 'R4' ? 6 : 12;
@@ -109,7 +123,13 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
     }
   }
 
-  const [activeMonth, setActiveMonth] = useState<number>(defaultActiveMonth);
+  const [activeMonth, setActiveMonth] = useState<number>(systemOngoingMonth || defaultActiveMonth);
+
+  useEffect(() => {
+    if (systemOngoingMonth) {
+      setActiveMonth(systemOngoingMonth);
+    }
+  }, [systemOngoingMonth]);
   const [notesInput, setNotesInput] = useState('');
   const [fileNameInput, setFileNameInput] = useState('');
   const [dragActive, setDragActive] = useState(false);
@@ -374,7 +394,7 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Monopoly Board (Col-span 7) */}
-        <div className={`lg:col-span-7 rounded-2xl border p-4 flex flex-col items-center justify-center min-h-[460px] transition-colors ${
+        <div className={`lg:col-span-7 rounded-2xl border p-4 pt-16 sm:pt-20 flex flex-col items-center justify-center min-h-[480px] transition-colors ${
           hwTheme === 'dark'
             ? 'bg-slate-950/90 border-slate-800 shadow-2xl'
             : 'bg-slate-100/90 border-slate-200 shadow-sm'
@@ -463,14 +483,44 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
               const hStatus = student.homeworkStatus[hwId];
               const currentDeptId = student.schedule[layout.month - 1] || 'adult-er';
               const currentDept = DEPARTMENTS[currentDeptId];
+              const isPastMonth = layout.month < currentMonthIndex;
+              const isCurrentMonth = layout.month === currentMonthIndex;
 
               // Grid position strings
               const gridRowClass = `row-start-${layout.row + 1}`;
               const gridColClass = `col-start-${layout.col + 1}`;
 
-              // Determine styling with alternating light red and deeper red contrast (每月作業紅色主題)
+              // Determine styling: Past months greyed out (反灰); Active/Future months red theme
               let bgClass = '';
-              if (hwTheme === 'light') {
+              if (isPastMonth) {
+                // Past months: greyed out (反灰，表示已經過去)
+                if (hwTheme === 'dark') {
+                  if (isSelected) {
+                    bgClass = 'bg-slate-800 text-white border-slate-600 ring-4 ring-slate-500/50 shadow-lg scale-105 z-25 cursor-pointer';
+                  } else if (hStatus?.status === 'approved') {
+                    bgClass = 'bg-slate-900/90 hover:bg-slate-850 border-slate-700 text-slate-300 shadow-none font-medium cursor-pointer';
+                  } else if (hStatus?.status === 'pending') {
+                    bgClass = 'bg-slate-900/80 hover:bg-slate-850 border-amber-500/70 text-amber-200/90 shadow-none cursor-pointer';
+                  } else if (hStatus?.status === 'rejected') {
+                    bgClass = 'bg-slate-900/80 hover:bg-slate-850 border-rose-500/70 text-rose-200/90 shadow-none cursor-pointer';
+                  } else {
+                    bgClass = 'bg-slate-950/80 hover:bg-slate-900 border-slate-850 text-slate-500 shadow-none opacity-70 cursor-pointer';
+                  }
+                } else {
+                  // Light Mode - Greyed out (反灰)
+                  if (isSelected) {
+                    bgClass = 'bg-slate-700 text-white border-slate-500 ring-4 ring-slate-400/50 shadow-lg scale-105 z-25 cursor-pointer';
+                  } else if (hStatus?.status === 'approved') {
+                    bgClass = 'bg-slate-200/95 hover:bg-slate-300/90 border-slate-300 text-slate-700 shadow-none font-medium cursor-pointer';
+                  } else if (hStatus?.status === 'pending') {
+                    bgClass = 'bg-slate-200 hover:bg-slate-300 border-amber-400 text-slate-700 shadow-none cursor-pointer';
+                  } else if (hStatus?.status === 'rejected') {
+                    bgClass = 'bg-slate-200 hover:bg-slate-300 border-rose-300 text-slate-700 shadow-none cursor-pointer';
+                  } else {
+                    bgClass = 'bg-slate-100 hover:bg-slate-200 border-slate-250 text-slate-400 shadow-none opacity-75 cursor-pointer';
+                  }
+                }
+              } else if (hwTheme === 'light') {
                 // High contrast alternating red: Even months Deeper Red (較深一點的紅色), Odd months Light Red (淺紅色)
                 if (isEvenMonth) {
                   // Deeper Red Block (較深一點的紅色)
@@ -499,7 +549,9 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
                 }
 
                 if (isSelected) {
-                  bgClass = 'bg-rose-600 text-white border-rose-400 ring-4 ring-rose-400/50 shadow-lg shadow-rose-500/30 scale-105 z-20 cursor-pointer';
+                  bgClass = 'bg-rose-600 text-white border-rose-400 ring-4 ring-rose-400/50 shadow-lg shadow-rose-500/30 scale-105 z-25 cursor-pointer';
+                } else if (isCurrentMonth) {
+                  bgClass += ' ring-4 ring-rose-400/60 shadow-[0_0_18px_rgba(244,63,94,0.45)] border-rose-400 z-20';
                 }
               } else {
                 // Alternating dark tones: Even months deeper rose-950, Odd months slate-950 with rose tint
@@ -520,7 +572,9 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
                 }
 
                 if (isSelected) {
-                  bgClass = 'bg-rose-600 text-white border-rose-400 ring-4 ring-rose-400/40 shadow-lg shadow-rose-500/30 scale-105 z-20 cursor-pointer';
+                  bgClass = 'bg-rose-600 text-white border-rose-400 ring-4 ring-rose-400/40 shadow-lg shadow-rose-500/30 scale-105 z-25 cursor-pointer';
+                } else if (isCurrentMonth) {
+                  bgClass += ' ring-4 ring-rose-400/60 shadow-[0_0_18px_rgba(244,63,94,0.45)] border-rose-400 z-20';
                 }
               }
 
@@ -530,23 +584,79 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
                   onClick={() => setActiveMonth(layout.month)}
                   className={`relative rounded-xl border p-2 flex flex-col justify-between items-center text-center transition-all select-none ${gridRowClass} ${gridColClass} ${bgClass}`}
                 >
-                  {/* Top: Month ID */}
-                  <span className={`text-[9px] font-black font-mono tracking-wider ${
-                    isSelected 
-                      ? 'text-rose-200' 
-                      : hwTheme === 'dark' 
-                      ? 'text-rose-300' 
-                      : isEvenMonth
-                      ? 'text-rose-100'
-                      : 'text-rose-800'
-                  }`}>
-                    M{layout.month}
-                  </span>
+                  {/* Floating Character & Bubble on current ongoing month */}
+                  {layout.month === currentMonthIndex && (
+                    <div className="absolute -top-14 sm:-top-16 left-1/2 -translate-x-1/2 flex flex-col items-center animate-bounce duration-1000 shrink-0 select-none z-30 pointer-events-none">
+                      {/* Speech Bubble */}
+                      <div className="bg-white text-slate-950 text-[10px] sm:text-xs font-black px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg shadow-xl whitespace-nowrap mb-1 relative border border-rose-400 flex items-center gap-1">
+                        <span className="text-slate-900">{student.name}</span>
+                        <span className="text-rose-600 font-extrabold">當月作業</span>
+                        {/* Downward triangle arrow */}
+                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white border-r border-b border-rose-400 rotate-45" />
+                      </div>
+
+                      {/* Character Avatar Photo/Emoji */}
+                      <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-full border-3 border-rose-400 bg-slate-900 flex items-center justify-center text-2xl sm:text-3xl overflow-hidden shadow-2xl shadow-rose-950/70 ring-4 ring-rose-400/40">
+                        {student.avatar && (student.avatar.startsWith('data:') || student.avatar.startsWith('http')) ? (
+                          <img 
+                            src={student.avatar} 
+                            referrerPolicy="no-referrer" 
+                            alt={student.name} 
+                            className="h-full w-full object-cover" 
+                          />
+                        ) : (
+                          <span>{student.avatar || '👨‍⚕️'}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Top: Month ID & status tags */}
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center space-x-1">
+                      <span className={`text-[9px] font-black font-mono tracking-wider ${
+                        isSelected 
+                          ? 'text-white' 
+                          : isPastMonth
+                          ? (hwTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')
+                          : hwTheme === 'dark' 
+                          ? 'text-rose-300' 
+                          : isEvenMonth
+                          ? 'text-rose-100'
+                          : 'text-rose-800'
+                      }`}>
+                        M{layout.month}
+                      </span>
+                      {isPastMonth && (
+                        <span className={`text-[7.5px] font-black px-1 py-0.2 rounded leading-none ${
+                          isSelected
+                            ? 'bg-slate-600 text-slate-200'
+                            : hwTheme === 'dark'
+                            ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                            : 'bg-slate-300/80 text-slate-600 border border-slate-400/40'
+                        }`}>
+                          已過去
+                        </span>
+                      )}
+                    </div>
+                    {isCurrentMonth && (
+                      <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded ${isSelected ? 'bg-rose-500 text-white' : 'bg-rose-500 text-white animate-pulse'}`}>
+                        目前進行
+                      </span>
+                    )}
+                    {isPastMonth && hStatus?.status === 'approved' && !isSelected && (
+                      <span className="text-[8px] font-black text-rose-800 bg-rose-100 px-1 py-0.2 rounded border border-rose-300 flex items-center gap-0.5">
+                        <Check className="h-2.5 w-2.5" />核可
+                      </span>
+                    )}
+                  </div>
 
                   {/* Mid: Icon */}
                   <div className={`my-1 ${
                     isSelected 
                       ? 'text-white scale-110' 
+                      : isPastMonth
+                      ? (hwTheme === 'dark' ? 'text-slate-500' : 'text-slate-400')
                       : hwTheme === 'dark' 
                       ? 'text-rose-300' 
                       : isEvenMonth 
@@ -560,6 +670,8 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
                   <span className={`text-[9px] font-bold truncate w-full ${
                     isSelected 
                       ? 'text-white' 
+                      : isPastMonth
+                      ? (hwTheme === 'dark' ? 'text-slate-400' : 'text-slate-600 font-bold')
                       : hwTheme === 'dark' 
                       ? 'text-rose-100' 
                       : isEvenMonth 
@@ -573,8 +685,8 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
                       : '常規評量申報'}
                   </span>
 
-                  {/* Small absolute indicator status */}
-                  {!isSelected && hStatus && (
+                  {/* Small absolute indicator status for non-past or pending/rejected */}
+                  {!isSelected && !isPastMonth && hStatus && (
                     <span className="absolute -top-1 -right-1 flex h-2 w-2">
                       {hStatus.status === 'approved' && <span className="absolute inline-flex h-full w-full rounded-full bg-teal-500 opacity-80" />}
                       {hStatus.status === 'pending' && <span className="absolute inline-flex h-full w-full rounded-full bg-amber-500 animate-ping" />}
@@ -612,10 +724,25 @@ export default function HomeworkView({ student, onUpdateStatus, onMarkRolled }: 
                 const isRoutine = activeHomework.id.startsWith('hw-routine-');
                 return (
                   <div className="border-b border-slate-100 pb-3">
-                    <span className="rounded bg-rose-50 border border-rose-100 px-2 py-0.5 text-[9px] font-extrabold text-rose-700 tracking-wider font-mono">
-                      {student.rLevel} MONTH {activeMonth} STATUS
-                    </span>
-                    <h3 className="text-base font-extrabold text-slate-900 mt-1">
+                    <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                      <span className="rounded bg-rose-50 border border-rose-100 px-2 py-0.5 text-[9px] font-extrabold text-rose-700 tracking-wider font-mono">
+                        {student.rLevel} MONTH {activeMonth} STATUS
+                      </span>
+                      {activeMonth < currentMonthIndex ? (
+                        <span className="rounded bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border border-slate-300 dark:border-slate-700 px-2 py-0.5 text-[9px] font-bold">
+                          🕒 此月份作業已過去
+                        </span>
+                      ) : activeMonth === currentMonthIndex ? (
+                        <span className="rounded bg-rose-100 text-rose-800 border border-rose-300 px-2 py-0.5 text-[9px] font-bold">
+                          ⭐ 當前進行中月份
+                        </span>
+                      ) : (
+                        <span className="rounded bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 text-[9px] font-medium">
+                          未來預定作業
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-base font-extrabold text-slate-900 mt-1.5">
                       {isRoutine ? '常規評量檢核月' : `${currentDept?.name || '臨床科室'} 核心科室作業`}
                     </h3>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">

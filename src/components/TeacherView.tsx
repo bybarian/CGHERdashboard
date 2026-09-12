@@ -11,6 +11,7 @@ import {
   FileSpreadsheet, 
   RefreshCw, 
   ArrowUpRight, 
+  ArrowRight, 
   Upload, 
   Download, 
   Edit3,
@@ -56,6 +57,20 @@ import {
   DEFAULT_MENTORS
 } from '../types';
 import { compressImageToDataUrl } from '../utils/imageUtils';
+
+export const getStudentFourYearSchedules = (student: Student): Record<RLevel, string[]> => {
+  return student.fourYearSchedules || {
+    R1: student.rLevel === 'R1' ? [...student.schedule] : ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
+    R2: student.rLevel === 'R2' ? [...student.schedule] : ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+    R3: student.rLevel === 'R3' ? [...student.schedule] : ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
+    R4: student.rLevel === 'R4' ? [...student.schedule] : ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training']
+  };
+};
+
+export const getSavedScheduleForStudentYear = (student: Student, rYear: RLevel): string[] => {
+  const fourYear = getStudentFourYearSchedules(student);
+  return fourYear[rYear] || Array(12).fill('adult-er');
+};
 
 interface TeacherViewProps {
   students: Student[];
@@ -146,6 +161,9 @@ export default function TeacherView({
   // States for Schedule Management
   const [selectedScheduleStudentId, setSelectedScheduleStudentId] = useState<string>(students[0]?.id || '');
   const [selectedRYearTab, setSelectedRYearTab] = useState<RLevel>('R1');
+  const [scheduleDraft, setScheduleDraft] = useState<string[]>([]);
+  const [showScheduleConfirmModal, setShowScheduleConfirmModal] = useState<boolean>(false);
+  const [scheduleSaveMessage, setScheduleSaveMessage] = useState<{ type: 'success' | 'info' | 'error', text: string } | null>(null);
   const [excelPasteText, setExcelPasteText] = useState('');
   const [excelParseMessage, setExcelParseMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -441,29 +459,97 @@ export default function TeacherView({
     });
   };
 
-  const handleManualScheduleChange = (monthIdx: number, deptId: string) => {
+  const currentSavedSchedule = selectedScheduleStudent 
+    ? getSavedScheduleForStudentYear(selectedScheduleStudent, selectedRYearTab)
+    : Array(12).fill('adult-er');
+
+  // Synchronize draft when selected student or selected year tab changes
+  React.useEffect(() => {
+    if (selectedScheduleStudent) {
+      const saved = getSavedScheduleForStudentYear(selectedScheduleStudent, selectedRYearTab);
+      setScheduleDraft([...saved]);
+      setScheduleSaveMessage(null);
+    }
+  }, [selectedScheduleStudentId, selectedRYearTab]);
+
+  const effectiveDraft = (scheduleDraft && scheduleDraft.length === 12) 
+    ? scheduleDraft 
+    : currentSavedSchedule;
+
+  const changedMonths = effectiveDraft.map((deptId, idx) => ({
+    monthIdx: idx,
+    monthName: `${idx + 1}月份`,
+    originalDeptId: currentSavedSchedule[idx] || 'adult-er',
+    newDeptId: deptId,
+    isChanged: deptId !== (currentSavedSchedule[idx] || 'adult-er')
+  })).filter(item => item.isChanged);
+
+  const hasUnsavedChanges = changedMonths.length > 0;
+
+  const handleSelectStudentForSchedule = (newStudentId: string) => {
+    if (hasUnsavedChanges) {
+      const confirmLeave = window.confirm(`您對 ${selectedScheduleStudent?.name} 的輪訓表有尚未儲存的修改，切換醫師將放棄這些修改，確定要切換嗎？`);
+      if (!confirmLeave) return;
+    }
+    setSelectedScheduleStudentId(newStudentId);
+    const targetStudent = students.find(s => s.id === newStudentId);
+    if (targetStudent) {
+      setSelectedRYearTab(targetStudent.rLevel);
+    }
+  };
+
+  const handleSelectRYearTab = (newYear: RLevel) => {
+    if (hasUnsavedChanges) {
+      const confirmLeave = window.confirm(`您對 ${selectedRYearTab} 階段有尚未儲存的輪訓調整，切換訓練年度將放棄這些修改，確定要切換嗎？`);
+      if (!confirmLeave) return;
+    }
+    setSelectedRYearTab(newYear);
+  };
+
+  const handleDraftMonthChange = (monthIdx: number, deptId: string) => {
+    setScheduleDraft(prev => {
+      const base = prev.length === 12 ? [...prev] : [...currentSavedSchedule];
+      base[monthIdx] = deptId;
+      return base;
+    });
+    setScheduleSaveMessage(null);
+  };
+
+  const handleResetScheduleDraft = () => {
+    setScheduleDraft([...currentSavedSchedule]);
+    setScheduleSaveMessage({ type: 'info', text: '已還原為原先已儲存之輪訓課表。' });
+    setTimeout(() => setScheduleSaveMessage(null), 3500);
+  };
+
+  const handleOpenScheduleConfirmModal = () => {
+    if (!hasUnsavedChanges) {
+      setScheduleSaveMessage({ type: 'info', text: '目前課表與系統已儲存一致，無待確認變更。' });
+      setTimeout(() => setScheduleSaveMessage(null), 3000);
+      return;
+    }
+    setShowScheduleConfirmModal(true);
+  };
+
+  const handleConfirmScheduleSave = () => {
     if (!selectedScheduleStudent) return;
     
-    const currentFourYearSchedules = selectedScheduleStudent.fourYearSchedules || {
-      R1: selectedScheduleStudent.rLevel === 'R1' ? [...selectedScheduleStudent.schedule] : ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
-      R2: selectedScheduleStudent.rLevel === 'R2' ? [...selectedScheduleStudent.schedule] : ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
-      R3: selectedScheduleStudent.rLevel === 'R3' ? [...selectedScheduleStudent.schedule] : ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
-      R4: selectedScheduleStudent.rLevel === 'R4' ? [...selectedScheduleStudent.schedule] : ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training']
-    };
-
-    const updatedYearSchedule = [...(currentFourYearSchedules[selectedRYearTab] || Array(12).fill('adult-er'))];
-    updatedYearSchedule[monthIdx] = deptId;
-
+    const currentFourYearSchedules = getStudentFourYearSchedules(selectedScheduleStudent);
     const nextFourYearSchedules = {
       ...currentFourYearSchedules,
-      [selectedRYearTab]: updatedYearSchedule
+      [selectedRYearTab]: [...effectiveDraft]
     };
 
     const nextActiveSchedule = selectedRYearTab === selectedScheduleStudent.rLevel
-      ? updatedYearSchedule
+      ? [...effectiveDraft]
       : [...selectedScheduleStudent.schedule];
 
     onUpdateSchedule(selectedScheduleStudent.id, nextActiveSchedule, nextFourYearSchedules);
+    setShowScheduleConfirmModal(false);
+    setScheduleSaveMessage({
+      type: 'success',
+      text: `已成功確認並儲存！${selectedScheduleStudent.name} 醫師之 ${selectedRYearTab} 輪訓課表已更新生效（共確認 ${changedMonths.length} 個月份之調整）。`
+    });
+    setTimeout(() => setScheduleSaveMessage(null), 5000);
   };
 
   // Excel-like Schedule Importer Parser
@@ -498,14 +584,7 @@ export default function TeacherView({
       '完訓': 'completed-training', '完成訓練': 'completed-training'
     };
 
-    const currentFourYearSchedules = selectedScheduleStudent.fourYearSchedules || {
-      R1: selectedScheduleStudent.rLevel === 'R1' ? [...selectedScheduleStudent.schedule] : ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
-      R2: selectedScheduleStudent.rLevel === 'R2' ? [...selectedScheduleStudent.schedule] : ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
-      R3: selectedScheduleStudent.rLevel === 'R3' ? [...selectedScheduleStudent.schedule] : ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
-      R4: selectedScheduleStudent.rLevel === 'R4' ? [...selectedScheduleStudent.schedule] : ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training']
-    };
-
-    const targetYearSchedule = [...(currentFourYearSchedules[selectedRYearTab] || Array(12).fill('adult-er'))];
+    const targetYearSchedule = [...effectiveDraft];
     let matchedCount = 0;
 
     // Split text by common separators: commas, tabs, semicolons, newlines
@@ -554,19 +633,10 @@ export default function TeacherView({
     }
 
     if (matchedCount > 0) {
-      const nextFourYearSchedules = {
-        ...currentFourYearSchedules,
-        [selectedRYearTab]: targetYearSchedule
-      };
-
-      const nextActiveSchedule = selectedRYearTab === selectedScheduleStudent.rLevel
-        ? targetYearSchedule
-        : [...selectedScheduleStudent.schedule];
-
-      onUpdateSchedule(selectedScheduleStudent.id, nextActiveSchedule, nextFourYearSchedules);
+      setScheduleDraft(targetYearSchedule);
       setExcelParseMessage({ 
         type: 'success', 
-        text: `匯入成功！已成功解析並更新 ${selectedRYearTab} 的 12 個月中的 ${matchedCount} 個科別輪訓。` 
+        text: `解析成功！已成功辨識 ${matchedCount} 個月份科別並填入左側課表草稿。請檢視後點擊左側「確認調整輪訓科別」按鍵以完成確認儲存！` 
       });
       setExcelPasteText('');
     } else {
@@ -1527,7 +1597,7 @@ export default function TeacherView({
               {/* Resident selector */}
               <select
                 value={selectedScheduleStudentId}
-                onChange={(e) => setSelectedScheduleStudentId(e.target.value)}
+                onChange={(e) => handleSelectStudentForSchedule(e.target.value)}
                 className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-700 focus:outline-none"
               >
                 {students.map(s => (
@@ -1551,7 +1621,7 @@ export default function TeacherView({
                         <button
                           key={rYear}
                           type="button"
-                          onClick={() => setSelectedRYearTab(rYear)}
+                          onClick={() => handleSelectRYearTab(rYear)}
                           className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
                             isSelected
                               ? 'bg-indigo-600 text-white shadow'
@@ -1575,35 +1645,74 @@ export default function TeacherView({
                   </div>
                 ) : (
                   <div className="bg-teal-50/50 text-[10px] text-teal-900 border border-teal-200/50 px-3 py-1.5 rounded-lg font-medium flex items-center space-x-1 animate-in fade-in duration-200">
-                    <span>✅ 提示：您正在編輯目前所屬年級 <strong>{selectedRYearTab}</strong> 的課表，設定將即時同步於大富翁與作業。</span>
+                    <span>✅ 提示：您正在編輯目前所屬年級 <strong>{selectedRYearTab}</strong> 的課表，設定確認送出後將即時同步於大富翁與作業。</span>
                   </div>
                 )}
 
-                <p className="text-xs text-slate-500">
-                  修改 <strong>{selectedScheduleStudent.name}</strong> 醫師於 <strong>{selectedRYearTab}</strong> 階段之輪訓科別
-                  {selectedRYearTab === 'R4' && <span className="text-indigo-600 font-bold ml-1">（因8-9月起訓，R4訓練至隔年6月完訓）</span>}：
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-slate-500">
+                    修改 <strong>{selectedScheduleStudent.name}</strong> 醫師於 <strong>{selectedRYearTab}</strong> 階段之輪訓科別
+                    {selectedRYearTab === 'R4' && <span className="text-indigo-600 font-bold ml-1">（因8-9月起訓，R4訓練至隔年6月完訓）</span>}：
+                  </p>
+                  {hasUnsavedChanges && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
+                      有 {changedMonths.length} 個月份已調整尚未確認
+                    </span>
+                  )}
+                </div>
 
+                {/* 12 Months Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[350px] overflow-y-auto pr-1">
                   {MONTH_NAMES.map((monthName, idx) => {
-                    const currentFourYearSchedules = selectedScheduleStudent.fourYearSchedules || {
-                      R1: selectedScheduleStudent.rLevel === 'R1' ? [...selectedScheduleStudent.schedule] : ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
-                      R2: selectedScheduleStudent.rLevel === 'R2' ? [...selectedScheduleStudent.schedule] : ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
-                      R3: selectedScheduleStudent.rLevel === 'R3' ? [...selectedScheduleStudent.schedule] : ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
-                      R4: selectedScheduleStudent.rLevel === 'R4' ? [...selectedScheduleStudent.schedule] : ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training']
-                    };
-                    const currentDeptId = (currentFourYearSchedules[selectedRYearTab] || Array(12).fill('adult-er'))[idx] || 'adult-er';
+                    const currentDraftDeptId = effectiveDraft[idx] || 'adult-er';
+                    const originalSavedDeptId = currentSavedSchedule[idx] || 'adult-er';
+                    const isMonthModified = currentDraftDeptId !== originalSavedDeptId;
+                    const isPastMonth = selectedRYearTab === selectedScheduleStudent.rLevel && (idx + 1) < systemOngoingMonth;
 
                     return (
-                      <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg border border-slate-100 bg-slate-50/50 text-xs">
-                        <span className="font-extrabold text-slate-800 font-mono shrink-0 w-28">
-                          {idx + 1}月份{selectedRYearTab === 'R4' && idx >= 6 ? ' (完訓)' : ''}：
-                        </span>
+                      <div 
+                        key={idx} 
+                        className={`flex items-center justify-between p-2.5 rounded-lg border text-xs transition-all ${
+                          isMonthModified
+                            ? 'border-amber-400 bg-amber-50/80 ring-1 ring-amber-300/60 shadow-xs'
+                            : isPastMonth
+                            ? 'border-slate-200 bg-slate-100/70 text-slate-500'
+                            : 'border-slate-100 bg-slate-50/50'
+                        }`}
+                      >
+                        <div className="flex flex-col pr-1 overflow-hidden">
+                          <div className="flex items-center space-x-1.5 flex-wrap gap-y-0.5">
+                            <span className={`font-extrabold font-mono shrink-0 ${isPastMonth && !isMonthModified ? 'text-slate-600' : 'text-slate-800'}`}>
+                              {idx + 1}月份{selectedRYearTab === 'R4' && idx >= 6 ? ' (完訓)' : ''}：
+                            </span>
+                            {isPastMonth && !isMonthModified && (
+                              <span className="px-1.5 py-0.25 rounded text-[9px] font-black bg-slate-200 text-slate-600 border border-slate-300 shrink-0">
+                                已過去
+                              </span>
+                            )}
+                            {isMonthModified && (
+                              <span className="px-1.5 py-0.25 rounded text-[9px] font-black bg-amber-200 text-amber-900 shrink-0">
+                                待確認
+                              </span>
+                            )}
+                          </div>
+                          {isMonthModified && (
+                            <span className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">
+                              原：{DEPARTMENTS[originalSavedDeptId]?.name || originalSavedDeptId}
+                            </span>
+                          )}
+                        </div>
                         
                         <select
-                          value={currentDeptId}
-                          onChange={(e) => handleManualScheduleChange(idx, e.target.value)}
-                          className="w-full max-w-[160px] rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none"
+                          value={currentDraftDeptId}
+                          onChange={(e) => handleDraftMonthChange(idx, e.target.value)}
+                          className={`w-full max-w-[150px] rounded border px-2 py-1 text-xs focus:outline-none transition-colors ${
+                            isMonthModified
+                              ? 'border-amber-400 bg-white text-slate-900 font-bold ring-1 ring-amber-300'
+                              : isPastMonth
+                              ? 'border-slate-300 bg-slate-50 text-slate-700'
+                              : 'border-slate-300 bg-white text-slate-700 focus:border-indigo-500'
+                          }`}
                         >
                           {Object.values(DEPARTMENTS).map(dept => (
                             <option key={dept.id} value={dept.id}>{dept.name}</option>
@@ -1613,6 +1722,87 @@ export default function TeacherView({
                     );
                   })}
                 </div>
+
+                {/* Status Message Banner */}
+                {scheduleSaveMessage && (
+                  <div className={`p-3 rounded-lg text-xs font-bold flex items-center justify-between animate-in fade-in duration-200 ${
+                    scheduleSaveMessage.type === 'success'
+                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-900'
+                      : scheduleSaveMessage.type === 'error'
+                      ? 'bg-rose-50 border border-rose-200 text-rose-900'
+                      : 'bg-indigo-50 border border-indigo-200 text-indigo-900'
+                  }`}>
+                    <div className="flex items-center space-x-2">
+                      {scheduleSaveMessage.type === 'success' && <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />}
+                      {scheduleSaveMessage.type === 'error' && <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />}
+                      {scheduleSaveMessage.type === 'info' && <Sparkles className="h-4 w-4 text-indigo-600 shrink-0" />}
+                      <span>{scheduleSaveMessage.text}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleSaveMessage(null)}
+                      className="text-slate-400 hover:text-slate-600 text-xs px-1 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                {/* Confirmation Control Bar */}
+                <div className={`p-3.5 rounded-xl border transition-all ${
+                  hasUnsavedChanges 
+                    ? 'bg-amber-50/90 border-amber-300 shadow-sm' 
+                    : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center space-x-2">
+                      {hasUnsavedChanges ? (
+                        <div className="flex items-center space-x-1.5 text-xs text-amber-900 font-bold">
+                          <span className="relative flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                          </span>
+                          <span>已修改 <strong>{changedMonths.length}</strong> 個月份輪訓科別，請點選確認鍵儲存</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-1.5 text-xs text-slate-500 font-medium">
+                          <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                          <span>目前課表已儲存（無待確認變更）</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      {hasUnsavedChanges && (
+                        <button
+                          type="button"
+                          onClick={handleResetScheduleDraft}
+                          className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 text-xs font-bold transition-all flex items-center space-x-1 cursor-pointer"
+                          title="取消本次所有未確認的修改"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5 text-slate-500" />
+                          <span>重設變更</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        id="btn-confirm-schedule"
+                        onClick={handleOpenScheduleConfirmModal}
+                        disabled={!hasUnsavedChanges}
+                        className={`px-4 py-2 rounded-lg text-xs font-extrabold transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm ${
+                          hasUnsavedChanges
+                            ? 'bg-indigo-600 hover:bg-indigo-700 text-white ring-2 ring-indigo-400/40 shadow-indigo-600/20 active:scale-98'
+                            : 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none'
+                        }`}
+                      >
+                        <CheckCircle2 className={`h-4 w-4 ${hasUnsavedChanges ? 'text-white' : 'text-slate-400'}`} />
+                        <span>確認調整輪訓科別 (確認鍵){hasUnsavedChanges ? ` [${changedMonths.length}]` : ''}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
               </div>
             )}
 
@@ -1681,6 +1871,139 @@ export default function TeacherView({
             </div>
 
           </div>
+
+          {/* Schedule Changes Confirmation Modal */}
+          {showScheduleConfirmModal && selectedScheduleStudent && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+              <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+                
+                {/* Modal Header */}
+                <div className="px-5 py-4 bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="h-9 w-9 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center">
+                      <CheckCircle2 className="h-5 w-5 text-indigo-300" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black">
+                        確認調整住院醫師輪訓科別
+                      </h3>
+                      <p className="text-[11px] text-indigo-200">
+                        請核對本次修改之月份與科別，確認無誤後點擊送出生效
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowScheduleConfirmModal(false)}
+                    className="h-7 w-7 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Modal Body */}
+                <div className="p-5 space-y-4 overflow-y-auto flex-1">
+                  
+                  {/* Resident info card */}
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                    <div className="flex items-center space-x-3">
+                      <div className="h-10 w-10 rounded-full bg-slate-800 flex items-center justify-center text-xl overflow-hidden border border-slate-300 shrink-0">
+                        {selectedScheduleStudent.avatar && (selectedScheduleStudent.avatar.startsWith('data:') || selectedScheduleStudent.avatar.startsWith('http')) ? (
+                          <img src={selectedScheduleStudent.avatar} alt={selectedScheduleStudent.name} referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+                        ) : (
+                          <span>{selectedScheduleStudent.avatar || '👨‍⚕️'}</span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-black text-slate-900 text-sm">{selectedScheduleStudent.name} 醫師</span>
+                          <span className="px-2 py-0.25 rounded-md bg-indigo-100 text-indigo-800 text-[10px] font-black">
+                            目前年級：{selectedScheduleStudent.rLevel}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          調整訓練階段：<strong className="text-indigo-600">{selectedRYearTab}</strong> 輪訓表
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold text-slate-400 block">待確認變更</span>
+                      <span className="text-sm font-black text-amber-600 font-mono">{changedMonths.length} 個月份</span>
+                    </div>
+                  </div>
+
+                  {/* Change List */}
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-700 mb-2 flex items-center justify-between">
+                      <span>科別變更明細清單：</span>
+                      <span className="text-[10px] text-slate-400 font-normal">原輪訓科別 ➔ 新輪訓科別</span>
+                    </h4>
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {changedMonths.map((item) => (
+                        <div key={item.monthIdx} className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50/80 transition-colors text-xs">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-mono font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded text-[11px]">
+                              {item.monthName}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-2 font-medium">
+                            <span className="text-slate-400 line-through text-xs">
+                              {DEPARTMENTS[item.originalDeptId]?.name || item.originalDeptId}
+                            </span>
+                            <ArrowRight className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                            <span className="text-slate-900 font-extrabold bg-emerald-50 border border-emerald-200 text-emerald-800 px-2 py-0.5 rounded text-xs">
+                              {DEPARTMENTS[item.newDeptId]?.name || item.newDeptId}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Active grade notice */}
+                  {selectedRYearTab === selectedScheduleStudent.rLevel ? (
+                    <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-[11px] text-teal-900 flex items-start space-x-2">
+                      <Sparkles className="h-4 w-4 text-teal-600 shrink-0 mt-0.5" />
+                      <p className="leading-relaxed">
+                        <strong>即時生效同步提示：</strong>此年級為該醫師目前所屬年級（{selectedRYearTab}），確認儲存後將 <strong>立即同步</strong> 其【大富翁輪訓地圖】與【每月臨床作業】之科別關卡！
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-[11px] text-indigo-900 flex items-start space-x-2">
+                      <Sparkles className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                      <p className="leading-relaxed">
+                        <strong>預先排程提示：</strong>您正在修改非目前年級（{selectedRYearTab}）之預排課表。當該醫師日後升級為 {selectedRYearTab} 時，將自動套用此客製課表。
+                      </p>
+                    </div>
+                  )}
+
+                </div>
+
+                {/* Modal Footer */}
+                <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end space-x-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowScheduleConfirmModal(false)}
+                    className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    取消返回修改
+                  </button>
+
+                  <button
+                    type="button"
+                    id="btn-modal-confirm-save-schedule"
+                    onClick={handleConfirmScheduleSave}
+                    className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-md shadow-indigo-600/20 transition-all flex items-center space-x-1.5 cursor-pointer active:scale-98"
+                  >
+                    <Check className="h-4 w-4" />
+                    <span>確認儲存並生效 (確認鍵)</span>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          )}
 
         </div>
       )}

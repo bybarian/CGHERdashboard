@@ -20,6 +20,7 @@ import {
   AlertCircle,
   FileText,
   CheckCircle2,
+  Check,
   XCircle,
   Clock,
   ArrowUpRight,
@@ -308,7 +309,7 @@ export default function RotationBoard({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Monopoly Board (Col-span 7) */}
-        <div className={`lg:col-span-7 rounded-2xl border p-4 flex flex-col items-center justify-center min-h-[460px] transition-colors ${
+        <div className={`lg:col-span-7 rounded-2xl border p-4 pt-16 sm:pt-20 flex flex-col items-center justify-center min-h-[480px] transition-colors ${
           boardTheme === 'dark' 
             ? 'bg-slate-950/90 border-slate-800 shadow-2xl' 
             : 'bg-slate-100/90 border-slate-200 shadow-sm'
@@ -394,6 +395,8 @@ export default function RotationBoard({
               const mStatus = student.rotationStatus[layout.month];
               const isSelected = activeMonth === layout.month;
               const isEvenMonth = layout.month % 2 === 0;
+              const isPastMonth = layout.month < currentMonthIndex;
+              const isCurrentMonth = layout.month === currentMonthIndex;
 
               // Grid position strings
               let gridRowClass = 'row-start-1';
@@ -406,9 +409,37 @@ export default function RotationBoard({
               else if (layout.col === 2) gridColClass = 'col-start-3';
               else if (layout.col === 3) gridColClass = 'col-start-4';
 
-              // Determine styling with alternating light green and deeper green contrast (輪訓地圖綠色主題)
+              // Determine styling: Past months greyed out (反灰); Active/Future months green theme
               let bgClass = '';
-              if (boardTheme === 'dark') {
+              if (isPastMonth) {
+                // Past months: greyed out (反灰，表示已經過去)
+                if (boardTheme === 'dark') {
+                  if (isSelected) {
+                    bgClass = 'bg-slate-800 text-white border-slate-600 ring-4 ring-slate-500/50 shadow-lg scale-105 z-25';
+                  } else if (mStatus?.status === 'approved') {
+                    bgClass = 'bg-slate-900/90 hover:bg-slate-850 border-slate-700 text-slate-300 shadow-none font-medium';
+                  } else if (mStatus?.status === 'pending') {
+                    bgClass = 'bg-slate-900/80 hover:bg-slate-850 border-amber-500/70 text-amber-200/90 shadow-none';
+                  } else if (mStatus?.status === 'rejected') {
+                    bgClass = 'bg-slate-900/80 hover:bg-slate-850 border-rose-500/70 text-rose-200/90 shadow-none';
+                  } else {
+                    bgClass = 'bg-slate-950/80 hover:bg-slate-900 border-slate-800 text-slate-500 shadow-none opacity-70';
+                  }
+                } else {
+                  // Light Mode - Greyed out (反灰)
+                  if (isSelected) {
+                    bgClass = 'bg-slate-700 text-white border-slate-500 ring-4 ring-slate-400/50 shadow-lg scale-105 z-25';
+                  } else if (mStatus?.status === 'approved') {
+                    bgClass = 'bg-slate-200/95 hover:bg-slate-300/90 border-slate-300 text-slate-700 shadow-none font-medium';
+                  } else if (mStatus?.status === 'pending') {
+                    bgClass = 'bg-slate-200 hover:bg-slate-300 border-amber-400 text-slate-700 shadow-none';
+                  } else if (mStatus?.status === 'rejected') {
+                    bgClass = 'bg-slate-200 hover:bg-slate-300 border-rose-300 text-slate-700 shadow-none';
+                  } else {
+                    bgClass = 'bg-slate-100 hover:bg-slate-200 border-slate-250 text-slate-400 shadow-none opacity-75';
+                  }
+                }
+              } else if (boardTheme === 'dark') {
                 // Alternating deep emerald / forest tones for dark mode
                 bgClass = isEvenMonth 
                   ? 'bg-emerald-950/80 hover:bg-emerald-900 border-emerald-700/80 text-emerald-100' 
@@ -428,7 +459,7 @@ export default function RotationBoard({
 
                 if (isSelected) {
                   bgClass = 'bg-teal-600 text-white border-teal-400 ring-4 ring-teal-400/50 shadow-lg shadow-teal-500/30 scale-105 z-20';
-                } else if (layout.month === currentMonthIndex) {
+                } else if (isCurrentMonth) {
                   bgClass += ' ring-2 ring-teal-400 shadow-[0_0_15px_rgba(45,212,191,0.45)] border-teal-400';
                 }
               } else {
@@ -460,9 +491,9 @@ export default function RotationBoard({
                 }
 
                 if (isSelected) {
-                  bgClass = 'bg-teal-600 text-white border-teal-500 ring-4 ring-teal-400/50 shadow-lg shadow-teal-500/25 scale-105 z-20';
-                } else if (layout.month === currentMonthIndex) {
-                  bgClass += ' ring-2 ring-teal-500 shadow-[0_0_12px_rgba(20,184,166,0.35)] border-teal-500';
+                  bgClass = 'bg-teal-600 text-white border-teal-500 ring-4 ring-teal-400/50 shadow-lg shadow-teal-500/25 scale-105 z-25';
+                } else if (isCurrentMonth) {
+                  bgClass += ' ring-4 ring-teal-400/60 shadow-[0_0_18px_rgba(20,184,166,0.45)] border-teal-400 z-20';
                 }
               }
 
@@ -472,22 +503,69 @@ export default function RotationBoard({
                   onClick={() => setActiveMonth(layout.month)}
                   className={`relative rounded-xl border p-2 flex flex-col justify-between items-center text-center transition-all cursor-pointer select-none ${gridRowClass} ${gridColClass} ${bgClass}`}
                 >
-                  {/* Top: Month ID */}
+                  {/* Floating Character & Bubble on current ongoing month */}
+                  {layout.month === currentMonthIndex && (
+                    <div className="absolute -top-14 sm:-top-16 left-1/2 -translate-x-1/2 flex flex-col items-center animate-bounce duration-1000 shrink-0 select-none z-30 pointer-events-none">
+                      {/* Speech Bubble */}
+                      <div className="bg-white text-slate-950 text-[10px] sm:text-xs font-black px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg shadow-xl whitespace-nowrap mb-1 relative border border-teal-400 flex items-center gap-1">
+                        <span className="text-slate-900">{student.name}</span>
+                        <span className="text-teal-600 font-extrabold">當月輪訓</span>
+                        {/* Downward triangle arrow */}
+                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white border-r border-b border-teal-400 rotate-45" />
+                      </div>
+
+                      {/* Character Avatar Photo/Emoji */}
+                      <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-full border-3 border-teal-400 bg-slate-900 flex items-center justify-center text-2xl sm:text-3xl overflow-hidden shadow-2xl shadow-teal-950/70 ring-4 ring-teal-400/40">
+                        {student.avatar && (student.avatar.startsWith('data:') || student.avatar.startsWith('http')) ? (
+                          <img 
+                            src={student.avatar} 
+                            referrerPolicy="no-referrer" 
+                            alt={student.name} 
+                            className="h-full w-full object-cover" 
+                          />
+                        ) : (
+                          <span>{student.avatar || '👨‍⚕️'}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Top: Month ID & status tags */}
                   <div className="flex items-center justify-between w-full">
-                    <span className={`text-[9px] font-black font-mono tracking-wider ${
-                      isSelected 
-                        ? 'text-teal-200' 
-                        : boardTheme === 'dark' 
-                        ? 'text-emerald-300' 
-                        : isEvenMonth
-                        ? 'text-emerald-100'
-                        : 'text-emerald-800'
-                    }`}>
-                      M{layout.month}
-                    </span>
-                    {layout.month === currentMonthIndex && (
+                    <div className="flex items-center space-x-1">
+                      <span className={`text-[9px] font-black font-mono tracking-wider ${
+                        isSelected 
+                          ? 'text-white' 
+                          : isPastMonth
+                          ? (boardTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')
+                          : boardTheme === 'dark' 
+                          ? 'text-emerald-300' 
+                          : isEvenMonth
+                          ? 'text-emerald-100'
+                          : 'text-emerald-800'
+                      }`}>
+                        M{layout.month}
+                      </span>
+                      {isPastMonth && (
+                        <span className={`text-[7.5px] font-black px-1 py-0.2 rounded leading-none ${
+                          isSelected
+                            ? 'bg-slate-600 text-slate-200'
+                            : boardTheme === 'dark'
+                            ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                            : 'bg-slate-300/80 text-slate-600 border border-slate-400/40'
+                        }`}>
+                          已過去
+                        </span>
+                      )}
+                    </div>
+                    {isCurrentMonth && (
                       <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded ${isSelected ? 'bg-teal-500 text-white' : 'bg-teal-500 text-white animate-pulse'}`}>
                         目前進行
+                      </span>
+                    )}
+                    {isPastMonth && mStatus?.status === 'approved' && !isSelected && (
+                      <span className="text-[8px] font-black text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded border border-emerald-300 flex items-center gap-0.5">
+                        <Check className="h-2.5 w-2.5" />完訓
                       </span>
                     )}
                   </div>
@@ -496,6 +574,8 @@ export default function RotationBoard({
                   <div className={`my-1 ${
                     isSelected 
                       ? 'text-white scale-110' 
+                      : isPastMonth
+                      ? (boardTheme === 'dark' ? 'text-slate-500' : 'text-slate-400')
                       : boardTheme === 'dark' 
                       ? 'text-emerald-300' 
                       : isEvenMonth 
@@ -509,6 +589,8 @@ export default function RotationBoard({
                   <span className={`text-[10px] font-extrabold truncate w-full ${
                     isSelected 
                       ? 'text-white' 
+                      : isPastMonth
+                      ? (boardTheme === 'dark' ? 'text-slate-400' : 'text-slate-600 font-bold')
                       : boardTheme === 'dark' 
                       ? 'text-emerald-100' 
                       : isEvenMonth 
@@ -518,8 +600,8 @@ export default function RotationBoard({
                     {currentDept?.name || '成人急診'}
                   </span>
 
-                  {/* Small absolute indicator status */}
-                  {!isSelected && (
+                  {/* Small absolute indicator status for non-past or pending/rejected */}
+                  {!isSelected && !isPastMonth && (
                     <span className="absolute -top-1 -right-1 flex h-2 w-2">
                       {mStatus?.status === 'approved' && <span className="absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-80" />}
                       {mStatus?.status === 'pending' && <span className="absolute inline-flex h-full w-full rounded-full bg-amber-400 animate-ping" />}
@@ -550,10 +632,25 @@ export default function RotationBoard({
           
           {/* Month & Dept details */}
           <div className={`border-b pb-3 ${boardTheme === 'dark' ? 'border-slate-800' : 'border-slate-100'}`}>
-            <span className="rounded bg-teal-500/20 border border-teal-400/30 px-2 py-0.5 text-[9px] font-extrabold text-teal-300 tracking-wider font-mono">
-              MONTH {activeMonth} STATUS
-            </span>
-            <h3 className={`text-base font-extrabold mt-1 ${boardTheme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+              <span className="rounded bg-teal-500/20 border border-teal-400/30 px-2 py-0.5 text-[9px] font-extrabold text-teal-300 tracking-wider font-mono">
+                MONTH {activeMonth} STATUS
+              </span>
+              {activeMonth < currentMonthIndex ? (
+                <span className="rounded bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border border-slate-300 dark:border-slate-700 px-2 py-0.5 text-[9px] font-bold">
+                  🕒 此月份已過去
+                </span>
+              ) : activeMonth === currentMonthIndex ? (
+                <span className="rounded bg-teal-100 text-teal-800 border border-teal-300 px-2 py-0.5 text-[9px] font-bold">
+                  ⭐ 當前進行中月份
+                </span>
+              ) : (
+                <span className="rounded bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 text-[9px] font-medium">
+                  未來預定輪訓
+                </span>
+              )}
+            </div>
+            <h3 className={`text-base font-extrabold mt-1.5 ${boardTheme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
               {MONTH_NAMES[activeMonth - 1]} 輪訓：{selectedDept.fullName}
             </h3>
             <p className={`text-xs mt-1 leading-relaxed ${boardTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>

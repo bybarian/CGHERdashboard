@@ -338,14 +338,14 @@ export default function DashboardView({
           </div>
 
           {/* Visual Progress Track */}
-          <div className="relative py-10 px-4 sm:px-12 mt-4 bg-white/5 rounded-xl border border-white/10 backdrop-blur-xs">
+          <div className="relative pt-28 pb-8 sm:pt-36 sm:pb-10 px-4 sm:px-12 mt-4 bg-white/5 rounded-xl border border-white/10 backdrop-blur-xs">
             
             {/* Connector Line Track */}
-            <div className="absolute top-1/2 left-4 right-4 sm:left-12 sm:right-12 h-1 bg-slate-800 -translate-y-1/2 rounded-full" />
+            <div className="absolute top-[128px] sm:top-[160px] left-4 right-4 sm:left-12 sm:right-12 h-1 bg-slate-800 -translate-y-1/2 rounded-full" />
             
             {/* Active Connector Line */}
             <div 
-              className="absolute top-1/2 left-4 sm:left-12 h-1 bg-gradient-to-r from-teal-500 to-emerald-400 -translate-y-1/2 rounded-full transition-all duration-1000" 
+              className="absolute top-[128px] sm:top-[160px] left-4 sm:left-12 h-1 bg-gradient-to-r from-teal-500 to-emerald-400 -translate-y-1/2 rounded-full transition-all duration-1000" 
               style={{
                 width: (() => {
                   const levels: Record<string, number> = { 'R1': 0, 'R2': 33, 'R3': 66, 'R4': 100 };
@@ -380,18 +380,24 @@ export default function DashboardView({
                     
                     {/* Floating Character & Bubble above current stage */}
                     {isCurrent && (
-                      <div className="absolute bottom-12 flex flex-col items-center animate-bounce duration-1000 shrink-0 select-none">
+                      <div className="absolute bottom-11 sm:bottom-12 flex flex-col items-center animate-bounce duration-1000 shrink-0 select-none z-20">
                         {/* Completion Bubble */}
-                        <div className="bg-white text-slate-950 text-[10px] font-black px-2 py-1 rounded-lg shadow-xl whitespace-nowrap mb-1.5 relative border border-teal-400">
-                          {student.name} {totalProgressPercent}%
+                        <div className="bg-white text-slate-950 text-xs font-black px-2.5 py-1 rounded-lg shadow-xl whitespace-nowrap mb-1.5 relative border border-teal-400 flex items-center gap-1">
+                          <span className="text-slate-900">{student.name}</span>
+                          <span className="text-teal-600 font-mono font-extrabold">{totalProgressPercent}%</span>
                           {/* Downward triangle arrow */}
                           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white border-r border-b border-teal-400 rotate-45" />
                         </div>
 
-                        {/* Character Avatar Emoji/Photo */}
-                        <div className="h-9 w-9 rounded-full border-2 border-teal-400 bg-teal-950 flex items-center justify-center text-base overflow-hidden">
-                          {student.avatar && student.avatar.startsWith('data:') ? (
-                            <img src={student.avatar} referrerPolicy="no-referrer" alt={student.name} className="h-full w-full object-cover" />
+                        {/* Character Avatar Emoji/Photo (Enlarged to 64px-80px for high visual clarity) */}
+                        <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full border-3 border-teal-400 bg-slate-900 flex items-center justify-center text-3xl sm:text-4xl overflow-hidden shadow-2xl shadow-teal-950/70 ring-4 ring-teal-400/30">
+                          {student.avatar && (student.avatar.startsWith('data:') || student.avatar.startsWith('http')) ? (
+                            <img 
+                              src={student.avatar} 
+                              referrerPolicy="no-referrer" 
+                              alt={student.name} 
+                              className="h-full w-full object-cover" 
+                            />
                           ) : (
                             <span>{student.avatar || '👨‍⚕️'}</span>
                           )}
@@ -400,7 +406,7 @@ export default function DashboardView({
                     )}
 
                     {/* Milestone circle node */}
-                    <div className={`h-8 w-8 rounded-full border-2 flex items-center justify-center font-black text-xs tracking-tight transition-all duration-500 ${nodeBg}`}>
+                    <div className={`h-8 w-8 sm:h-9 sm:w-9 rounded-full border-2 flex items-center justify-center font-black text-xs tracking-tight transition-all duration-500 ${nodeBg}`}>
                       {isPassed ? (
                         <CheckCircle2 className="h-4 w-4 text-white" />
                       ) : (
