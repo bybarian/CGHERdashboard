@@ -1055,7 +1055,7 @@ export default function App() {
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md overflow-hidden">
                 {!logoError ? (
                   <img 
-                    src="/logo.png" 
+                    src={`${import.meta.env.BASE_URL}logo.png`} 
                     alt="Logo" 
                     referrerPolicy="no-referrer"
                     onError={() => setLogoError(true)}
