@@ -12,7 +12,8 @@
         "xp": { "type": "integer" },
         "schedule": { "type": "array" },
         "admissionYear": { "type": "integer" },
-        "avatar": { "type": "string" }
+        "avatar": { "type": "string" },
+        "password": { "type": "string" }
       },
       "required": ["id", "name", "rLevel", "level", "xp", "schedule"]
     },
@@ -46,7 +47,8 @@
       "properties": {
         "systemOngoingMonth": { "type": "integer" },
         "systemDateText": { "type": "string" },
-        "rLevelTemplates": { "type": "object" }
+        "rLevelTemplates": { "type": "object" },
+        "residentPasswordRequired": { "type": "boolean" }
       }
     }
   },

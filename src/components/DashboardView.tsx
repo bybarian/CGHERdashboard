@@ -43,7 +43,8 @@ import {
   ShieldCheck,
   FileCheck,
   UserCheck,
-  Users
+  Users,
+  KeyRound
 } from 'lucide-react';
 import { 
   Student, 
@@ -108,6 +109,10 @@ interface DashboardViewProps {
   onRevertPromotion?: (studentId: string) => void;
   onUpdateMentor?: (studentId: string, mentorName: string, mentorTitle?: string) => void;
   mentors?: Mentor[];
+  onOpenChangePassword?: () => void;
+  onLockStudent?: () => void;
+  residentPasswordRequired?: boolean;
+  isUnlocked?: boolean;
 }
 
 export default function DashboardView({ 
@@ -122,7 +127,11 @@ export default function DashboardView({
   onCancelPromotion,
   onRevertPromotion,
   onUpdateMentor,
-  mentors = DEFAULT_MENTORS
+  mentors = DEFAULT_MENTORS,
+  onOpenChangePassword,
+  onLockStudent,
+  residentPasswordRequired = true,
+  isUnlocked = false
 }: DashboardViewProps) {
   const currentMonthIndex = systemOngoingMonth;
 
@@ -302,6 +311,34 @@ export default function DashboardView({
                 <span>{student.mentorName ? '更換導師' : '設定導師'}</span>
                 <ChevronRight className="h-3 w-3" />
               </button>
+
+              {/* Resident Security Status & Change Password Actions */}
+              {residentPasswordRequired && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-xs text-white">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-emerald-200 font-bold">個人密碼安全保護中</span>
+                  {onOpenChangePassword && (
+                    <button
+                      onClick={onOpenChangePassword}
+                      className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] font-bold transition-all cursor-pointer"
+                      title="修改您個人的登入密碼"
+                    >
+                      <KeyRound className="h-3 w-3 text-amber-300" />
+                      <span>修改密碼</span>
+                    </button>
+                  )}
+                  {onLockStudent && (
+                    <button
+                      onClick={onLockStudent}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/30 hover:bg-rose-500/50 text-rose-200 text-[11px] font-bold transition-all cursor-pointer"
+                      title="鎖定當前醫師帳戶，下次需重新輸入密碼"
+                    >
+                      <Lock className="h-3 w-3" />
+                      <span>鎖定</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

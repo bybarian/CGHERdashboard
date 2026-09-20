@@ -22,6 +22,8 @@ import RotationBoard from './components/RotationBoard';
 import CoursesView from './components/CoursesView';
 import HomeworkView from './components/HomeworkView';
 import TeacherView from './components/TeacherView';
+import ResidentAuthModal from './components/ResidentAuthModal';
+import ChangePasswordModal from './components/ChangePasswordModal';
 import { Trophy, Award, Sparkles, CheckCircle2, Star, Activity, X, BookOpen, Crown, Monitor, Map, AlertCircle } from 'lucide-react';
 import { 
   collection, 
@@ -41,6 +43,13 @@ export default function App() {
   const [isTeacher, setIsTeacher] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+
+  // Resident Authentication & Password Protection states
+  const [residentPasswordRequired, setResidentPasswordRequired] = useState<boolean>(true);
+  const [unlockedStudentIds, setUnlockedStudentIds] = useState<Record<string, boolean>>({});
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState<boolean>(false);
 
   // Gamification celebratory states
   const [showLevelUpModal, setShowLevelUpModal] = useState(false);
@@ -234,6 +243,9 @@ export default function App() {
         if (data.mentors !== undefined && Array.isArray(data.mentors) && data.mentors.length > 0) {
           setMentors(data.mentors);
         }
+        if (data.residentPasswordRequired !== undefined) {
+          setResidentPasswordRequired(data.residentPasswordRequired);
+        }
       } else {
         // Initialize default system config in Firestore
         try {
@@ -242,6 +254,7 @@ export default function App() {
             systemOngoingMonth: 7,
             systemDateText: '2026-07-05',
             mentors: DEFAULT_MENTORS,
+            residentPasswordRequired: true,
             rLevelTemplates: {
               R1: ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
               R2: ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
@@ -302,13 +315,122 @@ export default function App() {
 
   // Switch active resident
   const handleStudentChange = (id: string) => {
-    setCurrentStudentId(id);
+    // If selecting the currently active student and it's already unlocked or password is not required
+    if (id === currentStudentId && (unlockedStudentIds[id] || !residentPasswordRequired || isTeacher)) {
+      return;
+    }
+
+    // If teacher mode or global password check is disabled or resident already unlocked in this session
+    if (isTeacher || !residentPasswordRequired || unlockedStudentIds[id]) {
+      setCurrentStudentId(id);
+      try {
+        localStorage.setItem('em_residents_current_student_id', id);
+      } catch {
+        // ignore storage errors
+      }
+      setActiveTab('dashboard');
+    } else {
+      // Require resident password authentication
+      setPendingStudentId(id);
+      setIsAuthModalOpen(true);
+    }
+  };
+
+  // Successful resident login
+  const handleResidentAuthSuccess = (authenticatedStudentId: string) => {
+    setUnlockedStudentIds(prev => ({ ...prev, [authenticatedStudentId]: true }));
+    setCurrentStudentId(authenticatedStudentId);
     try {
-      localStorage.setItem('em_residents_current_student_id', id);
+      localStorage.setItem('em_residents_current_student_id', authenticatedStudentId);
     } catch {
       // ignore storage errors
     }
+    setIsAuthModalOpen(false);
+    setPendingStudentId(null);
     setActiveTab('dashboard');
+
+    const targetStudent = students.find(s => s.id === authenticatedStudentId);
+    setXpBannerText(`密碼驗證通過！歡迎 ${targetStudent?.name || ''} 醫師！`);
+    setShowXpBanner(true);
+    setTimeout(() => setShowXpBanner(false), 3000);
+  };
+
+  // Lock current resident session
+  const handleLockCurrentStudent = () => {
+    if (!currentStudentId) return;
+    setUnlockedStudentIds(prev => ({ ...prev, [currentStudentId]: false }));
+    setXpBannerText('已鎖定當前醫師帳戶。下次切換進入需再次輸入密碼。');
+    setShowXpBanner(true);
+    setTimeout(() => setShowXpBanner(false), 3000);
+  };
+
+  // Toggle global resident password enforcement
+  const handleToggleResidentPasswordRequired = async (enabled: boolean) => {
+    setResidentPasswordRequired(enabled);
+    try {
+      await setDoc(doc(db, 'config', 'system'), {
+        residentPasswordRequired: enabled
+      }, { merge: true });
+      setXpBannerText(enabled ? '全院住院醫師密碼安全防護：已啟動' : '全院住院醫師密碼安全防護：已關閉 (公開演示模式)');
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 3000);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'config/system');
+    }
+  };
+
+  // Teacher action: Reset a student's password
+  const handleResetStudentPassword = async (studentId: string, newPassword?: string) => {
+    const pass = newPassword || '1234';
+    setStudents(prev => prev.map(s => s.id === studentId ? { ...s, password: pass } : s));
+    try {
+      await updateDoc(doc(db, 'students', studentId), { password: pass });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
+    }
+  };
+
+  // Teacher action: Inspect student directly without password
+  const handleInspectStudent = (studentId: string) => {
+    setUnlockedStudentIds(prev => ({ ...prev, [studentId]: true }));
+    setCurrentStudentId(studentId);
+    try {
+      localStorage.setItem('em_residents_current_student_id', studentId);
+    } catch {}
+    setIsTeacher(false);
+    setActiveTab('dashboard');
+    const s = students.find(x => x.id === studentId);
+    setXpBannerText(`以導師權限進入【${s?.name || ''} 醫師】個人儀表板 (已自動解鎖)`);
+    setShowXpBanner(true);
+    setTimeout(() => setShowXpBanner(false), 3000);
+  };
+
+  // Resident action: Change personal password
+  const handleUpdatePassword = async (
+    studentId: string, 
+    oldPass: string, 
+    newPass: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) {
+      return { success: false, message: '找不到該醫師資料' };
+    }
+    const currentActualPassword = student.password || '1234';
+    if (oldPass !== currentActualPassword) {
+      return { success: false, message: '目前原密碼輸入錯誤，請重新確認！' };
+    }
+
+    setStudents(prev => prev.map(s => s.id === studentId ? { ...s, password: newPass } : s));
+    try {
+      await updateDoc(doc(db, 'students', studentId), { password: newPass });
+      setXpBannerText(`【${student.name} 醫師】密碼已更新成功！請記住您的新密碼。`);
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 3500);
+      return { success: true, message: '密碼已成功更新！' };
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + studentId);
+      return { success: false, message: '更新失敗，請檢查網路連線或稍後再試。' };
+    }
   };
 
   // Teacher password validation
@@ -1016,6 +1138,10 @@ export default function App() {
         systemDateText={effectiveDateText}
         clockMode={clockMode}
         currentTimeText={liveTimeText}
+        unlockedStudentIds={unlockedStudentIds}
+        residentPasswordRequired={residentPasswordRequired}
+        onLockCurrentStudent={handleLockCurrentStudent}
+        onOpenChangePassword={() => setIsChangePasswordOpen(true)}
       />
 
       {/* Left Margin Quick Link Hover Edge Trigger */}
@@ -1226,6 +1352,10 @@ export default function App() {
             onUpdateMentor={handleUpdateMentor}
             mentors={mentors}
             onUpdateMentors={handleUpdateMentors}
+            residentPasswordRequired={residentPasswordRequired}
+            onToggleResidentPasswordRequired={handleToggleResidentPasswordRequired}
+            onResetStudentPassword={handleResetStudentPassword}
+            onInspectStudent={handleInspectStudent}
           />
         ) : (
           // 2. Student Resident Active View
@@ -1246,6 +1376,10 @@ export default function App() {
                   onRevertPromotion={handleRevertPromotion}
                   onUpdateMentor={handleUpdateMentor}
                   mentors={mentors}
+                  residentPasswordRequired={residentPasswordRequired}
+                  onOpenChangePassword={() => setIsChangePasswordOpen(true)}
+                  onLockStudent={handleLockCurrentStudent}
+                  isUnlocked={unlockedStudentIds[currentStudent.id]}
                 />
               )}
 
@@ -1349,6 +1483,33 @@ export default function App() {
 
           </div>
         </div>
+      )}
+
+      {/* Resident Authentication Password Modal */}
+      {isAuthModalOpen && pendingStudentId && (() => {
+        const target = students.find(s => s.id === pendingStudentId);
+        if (!target) return null;
+        return (
+          <ResidentAuthModal
+            isOpen={isAuthModalOpen}
+            targetStudent={target}
+            onSuccess={handleResidentAuthSuccess}
+            onClose={() => {
+              setIsAuthModalOpen(false);
+              setPendingStudentId(null);
+            }}
+          />
+        );
+      })()}
+
+      {/* Resident Change Password Modal */}
+      {isChangePasswordOpen && currentStudent && (
+        <ChangePasswordModal
+          isOpen={isChangePasswordOpen}
+          student={currentStudent}
+          onClose={() => setIsChangePasswordOpen(false)}
+          onUpdatePassword={handleUpdatePassword}
+        />
       )}
 
     </div>

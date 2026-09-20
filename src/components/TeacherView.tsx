@@ -32,9 +32,13 @@ import {
   Lock,
   Unlock,
   ShieldCheck,
+  ShieldAlert,
   Award,
   UserCheck,
-  UserPlus
+  UserPlus,
+  Eye,
+  EyeOff,
+  KeyRound
 } from 'lucide-react';
 import { 
   Student, 
@@ -121,6 +125,10 @@ interface TeacherViewProps {
   onUpdateMentor?: (studentId: string, mentorName: string, mentorTitle?: string) => void;
   mentors: Mentor[];
   onUpdateMentors?: (newMentors: Mentor[]) => void;
+  residentPasswordRequired?: boolean;
+  onToggleResidentPasswordRequired?: (enabled: boolean) => void;
+  onResetStudentPassword?: (studentId: string, newPassword?: string) => Promise<void>;
+  onInspectStudent?: (studentId: string) => void;
 }
 
 export default function TeacherView({
@@ -147,7 +155,11 @@ export default function TeacherView({
   onRevertPromotion,
   onUpdateMentor,
   mentors,
-  onUpdateMentors
+  onUpdateMentors,
+  residentPasswordRequired = true,
+  onToggleResidentPasswordRequired,
+  onResetStudentPassword,
+  onInspectStudent
 }: TeacherViewProps) {
   const [activeSubTab, setActiveSubTab] = useState<'pending' | 'promotion' | 'schedule' | 'create' | 'manage' | 'mentors' | 'settings'>('pending');
   
@@ -213,6 +225,32 @@ export default function TeacherView({
   const [editSubNotes, setEditSubNotes] = useState<string>('');
   const [editSubStatus, setEditSubStatus] = useState<'approved' | 'pending' | 'rejected'>('pending');
 
+  // Resident Password Management States
+  const [newStudentPassword, setNewStudentPassword] = useState('1234');
+  const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({});
+  const [customPasswordInput, setCustomPasswordInput] = useState('');
+  const [passwordActionMsg, setPasswordActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+  const handleResetPasswordClick = async (targetStudentId: string, customPass?: string) => {
+    if (!onResetStudentPassword) return;
+    setIsResettingPassword(true);
+    try {
+      await onResetStudentPassword(targetStudentId, customPass);
+      const studentName = students.find(s => s.id === targetStudentId)?.name || targetStudentId;
+      setPasswordActionMsg({
+        type: 'success',
+        text: `已成功更新【${studentName} 醫師】的密碼為：${customPass || '1234'}`
+      });
+      setCustomPasswordInput('');
+      setTimeout(() => setPasswordActionMsg(null), 4000);
+    } catch {
+      setPasswordActionMsg({ type: 'error', text: '重設密碼失敗，請重試' });
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
   // Synchronize inputs when selected student changes
   React.useEffect(() => {
     if (selectedManageStudent) {
@@ -226,6 +264,7 @@ export default function TeacherView({
         `${1911 + (selectedManageStudent.admissionYear || 115)}-08-01`
       );
       setEditAvatarInput(selectedManageStudent.avatar || '👨‍⚕️');
+      setCustomPasswordInput('');
     }
   }, [selectedManageStudentId, students]);
 
@@ -718,12 +757,14 @@ export default function TeacherView({
       },
       rotationStatus: {},
       courseStatus: {},
-      homeworkStatus: {}
+      homeworkStatus: {},
+      password: newStudentPassword.trim() || '1234'
     };
 
     onAddStudent(newStudent);
 
     setNewStudentName('');
+    setNewStudentPassword('1234');
     setCustomAvatarBase64(null);
     setResidentManagementMsg({ type: 'success', text: `已成功新增住院醫師 ${newStudent.name} 帳戶！` });
     setTimeout(() => {
@@ -2397,6 +2438,24 @@ export default function TeacherView({
                     </div>
                   </div>
 
+                  {/* Initial Resident Password */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-slate-600 flex items-center justify-between">
+                      <span className="flex items-center space-x-1">
+                        <KeyRound className="h-3 w-3 text-teal-600" />
+                        <span>初始登入密碼：</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400">預設為 1234</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newStudentPassword}
+                      onChange={(e) => setNewStudentPassword(e.target.value)}
+                      placeholder="1234"
+                      className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 font-mono font-bold focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+
                   <button
                     type="submit"
                     className="w-full rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 text-xs transition-colors flex items-center justify-center space-x-1 cursor-pointer"
@@ -2453,6 +2512,274 @@ export default function TeacherView({
                 </div>
               )}
 
+            </div>
+
+            {/* Resident Password & Security Console Card */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 shrink-0">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900 flex items-center space-x-2">
+                      <span>住院醫師專屬登入密碼與存取安全管理</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold">
+                        安全防護
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      保障住院醫師個人訓練歷程不被隨意篡改；導師在此可全面掌握每位學員的密碼狀態，並隨時提供重設或免密碼進入查核。
+                    </p>
+                  </div>
+                </div>
+
+                {/* Master Switch Button */}
+                <button
+                  type="button"
+                  onClick={() => onToggleResidentPasswordRequired?.(!residentPasswordRequired)}
+                  className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors cursor-pointer shadow-2xs self-start sm:self-auto ${
+                    residentPasswordRequired 
+                      ? 'bg-teal-600 hover:bg-teal-700 text-white' 
+                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                  }`}
+                >
+                  {residentPasswordRequired ? (
+                    <>
+                      <Lock className="h-3.5 w-3.5" />
+                      <span>全院密碼保護：已開啟</span>
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="h-3.5 w-3.5" />
+                      <span>全院密碼保護：已關閉 (公開演示模式)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Password Action Feedback Alert */}
+              {passwordActionMsg && (
+                <div className={`p-3 rounded-lg text-xs font-bold flex items-center space-x-2 animate-in fade-in ${
+                  passwordActionMsg.type === 'success' 
+                    ? 'bg-teal-50 border border-teal-200 text-teal-800' 
+                    : 'bg-rose-50 border border-rose-200 text-rose-800'
+                }`}>
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-teal-600" />
+                  <span>{passwordActionMsg.text}</span>
+                </div>
+              )}
+
+              {/* Active Selected Resident Quick Password Management Box */}
+              {selectedManageStudent && (
+                <div className="rounded-xl border border-indigo-150 bg-indigo-50/40 p-4 space-y-3.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="text-lg flex items-center">
+                        {selectedManageStudent.avatar && (selectedManageStudent.avatar.startsWith('data:') || selectedManageStudent.avatar.startsWith('http')) ? (
+                          <img referrerPolicy="no-referrer" src={selectedManageStudent.avatar} alt="Avatar" className="h-7 w-7 rounded-full object-cover inline-block ring-1 ring-indigo-300" />
+                        ) : (selectedManageStudent.avatar || '👨‍⚕️')}
+                      </span>
+                      <div>
+                        <span className="font-extrabold text-slate-900 text-xs">
+                          【{selectedManageStudent.name} 醫師】目前密碼狀態
+                        </span>
+                        <span className="text-[10px] text-slate-500 block font-mono">
+                          {selectedManageStudent.rLevel} ({selectedManageStudent.admissionYear}年班)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      {/* View / Hide Password */}
+                      <div className="inline-flex items-center space-x-1.5 bg-white border border-indigo-200 px-2.5 py-1 rounded-lg text-xs">
+                        <span className="text-slate-500 font-medium text-[11px]">目前密碼：</span>
+                        <span className="font-mono font-extrabold text-indigo-950">
+                          {showPasswordMap[selectedManageStudent.id] 
+                            ? (selectedManageStudent.password || '1234') 
+                            : '••••••'
+                          }
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswordMap(prev => ({
+                            ...prev,
+                            [selectedManageStudent.id]: !prev[selectedManageStudent.id]
+                          }))}
+                          className="text-slate-400 hover:text-indigo-600 p-0.5 cursor-pointer"
+                          title={showPasswordMap[selectedManageStudent.id] ? '隱藏密碼' : '顯示明碼'}
+                        >
+                          {showPasswordMap[selectedManageStudent.id] ? (
+                            <EyeOff className="h-3.5 w-3.5" />
+                          ) : (
+                            <Eye className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
+
+                      {/* One-click Reset to 1234 */}
+                      <button
+                        type="button"
+                        onClick={() => handleResetPasswordClick(selectedManageStudent.id, '1234')}
+                        disabled={isResettingPassword}
+                        className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors cursor-pointer shadow-2xs"
+                        title="將此醫師密碼一鍵重設為系統預設值 1234"
+                      >
+                        <RotateCcw className="h-3 w-3 text-slate-500" />
+                        <span>重設為 1234</span>
+                      </button>
+
+                      {/* Inspect as student */}
+                      {onInspectStudent && (
+                        <button
+                          type="button"
+                          onClick={() => onInspectStudent(selectedManageStudent.id)}
+                          className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-2xs"
+                          title="直接以該醫師身分切換至個人儀表板查看，免輸入密碼"
+                        >
+                          <ArrowRight className="h-3 w-3" />
+                          <span>免密碼進入查閱</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Set Custom Password Form */}
+                  <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                    <label className="text-[11px] font-bold text-slate-700 shrink-0">
+                      為 {selectedManageStudent.name} 醫師自訂新密碼：
+                    </label>
+                    <div className="flex items-center space-x-2 w-full sm:w-auto flex-1">
+                      <input
+                        type="text"
+                        placeholder="請輸入欲指定之新密碼..."
+                        value={customPasswordInput}
+                        onChange={(e) => setCustomPasswordInput(e.target.value)}
+                        className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!customPasswordInput.trim()) {
+                            setPasswordActionMsg({ type: 'error', text: '請先輸入欲設定的新密碼！' });
+                            return;
+                          }
+                          handleResetPasswordClick(selectedManageStudent.id, customPasswordInput.trim());
+                        }}
+                        disabled={isResettingPassword || !customPasswordInput.trim()}
+                        className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs transition-colors cursor-pointer shrink-0 shadow-2xs"
+                      >
+                        儲存新密碼
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Roster of All Residents and Passwords */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-extrabold text-slate-800 flex items-center space-x-1.5">
+                    <Users className="h-3.5 w-3.5 text-slate-500" />
+                    <span>全院急診住院醫師密碼與安全狀態總覽名冊 (共 {students.length} 位)</span>
+                  </h4>
+                  <span className="text-[10px] text-slate-400">
+                    點擊眼睛圖示可查看該醫師設定之密碼
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-left text-xs text-slate-600">
+                    <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="py-2.5 px-3">住院醫師</th>
+                        <th className="py-2.5 px-3">級別 / 年班</th>
+                        <th className="py-2.5 px-3">專屬臨床導師</th>
+                        <th className="py-2.5 px-3">目前登入密碼</th>
+                        <th className="py-2.5 px-3 text-right">導師快捷動作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {students.map((st) => {
+                        const pass = st.password || '1234';
+                        const isRevealed = !!showPasswordMap[st.id];
+
+                        return (
+                          <tr key={st.id} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="py-2 px-3 font-bold text-slate-900">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-base">
+                                  {st.avatar && (st.avatar.startsWith('data:') || st.avatar.startsWith('http')) ? (
+                                    <img referrerPolicy="no-referrer" src={st.avatar} alt="Avatar" className="h-5 w-5 rounded-full object-cover inline-block ring-1 ring-slate-200" />
+                                  ) : (st.avatar || '👨‍⚕️')}
+                                </span>
+                                <span>{st.name} 醫師</span>
+                                {st.id === selectedManageStudentId && (
+                                  <span className="text-[9px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-1 rounded">
+                                    當前選取
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2 px-3">
+                              <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px] mr-1">
+                                {st.rLevel}
+                              </span>
+                              <span className="text-slate-500 text-[11px] font-mono">
+                                {st.admissionYear} 年班
+                              </span>
+                            </td>
+                            <td className="py-2 px-3">
+                              <span className="text-[11px] text-slate-600">
+                                {st.mentorName || '尚未指定'}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="inline-flex items-center space-x-1.5 font-mono text-[11px] bg-slate-100 px-2 py-0.5 rounded text-slate-800">
+                                <span className="font-bold">
+                                  {isRevealed ? pass : '••••'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPasswordMap(prev => ({ ...prev, [st.id]: !prev[st.id] }))}
+                                  className="text-slate-400 hover:text-indigo-600 p-0.5 cursor-pointer"
+                                  title={isRevealed ? '隱藏密碼' : '顯示明碼'}
+                                >
+                                  {isRevealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                </button>
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <div className="inline-flex items-center space-x-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleResetPasswordClick(st.id, '1234')}
+                                  disabled={isResettingPassword}
+                                  className="px-2 py-1 rounded border border-slate-300 hover:bg-slate-100 text-[10px] font-bold text-slate-700 transition-colors cursor-pointer"
+                                  title="重設為 1234"
+                                >
+                                  重設 1234
+                                </button>
+                                {onInspectStudent && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onInspectStudent(st.id)}
+                                    className="px-2 py-1 rounded bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-[10px] font-bold transition-colors cursor-pointer flex items-center space-x-0.5"
+                                    title="以該醫師身分進入查看"
+                                  >
+                                    <span>進入查看</span>
+                                    <ArrowRight className="h-2.5 w-2.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
 
             {/* Resident Information & Progress Card */}

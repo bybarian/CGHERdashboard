@@ -17,7 +17,9 @@ import {
   Map,
   AlertCircle,
   Clock,
-  Zap
+  Zap,
+  KeyRound,
+  ShieldCheck
 } from 'lucide-react';
 import { Student, RLevel, ClockMode } from '../types';
 
@@ -35,6 +37,10 @@ interface NavbarProps {
   systemDateText?: string;
   clockMode?: ClockMode;
   currentTimeText?: string;
+  unlockedStudentIds?: Record<string, boolean>;
+  residentPasswordRequired?: boolean;
+  onLockCurrentStudent?: () => void;
+  onOpenChangePassword?: () => void;
 }
 
 export default function Navbar({
@@ -50,7 +56,11 @@ export default function Navbar({
   systemOngoingMonth = 7,
   systemDateText = '2026-07-05',
   clockMode = 'auto',
-  currentTimeText = ''
+  currentTimeText = '',
+  unlockedStudentIds = {},
+  residentPasswordRequired = true,
+  onLockCurrentStudent,
+  onOpenChangePassword
 }: NavbarProps) {
   const [showTeacherModal, setShowTeacherModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
@@ -155,56 +165,158 @@ export default function Navbar({
         <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
           {/* Student Selector Dropdown (Hidden when teacher is active) */}
           {!isTeacher ? (
-            <div className="relative">
-              <button 
-                id="student-select-btn"
-                onClick={() => setShowStudentDropdown(!showStudentDropdown)}
-                className="flex items-center space-x-2 rounded-lg border border-slate-200 bg-white px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                <span className="text-sm flex items-center">
-                  {selectedStudent?.avatar && (selectedStudent.avatar.startsWith('data:') || selectedStudent.avatar.startsWith('http')) ? (
-                    <img referrerPolicy="no-referrer" src={selectedStudent.avatar} alt="Avatar" className="h-6 w-6 rounded-full object-cover inline-block ring-1 ring-teal-400" />
-                  ) : (selectedStudent?.avatar || '👨‍⚕️')}
-                </span>
-                <span>{selectedStudent?.name} ({selectedStudent?.rLevel})</span>
-                <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-              </button>
-
-              {showStudentDropdown && (
-                <div 
-                  id="student-dropdown-menu"
-                  className="absolute right-0 mt-1 w-52 rounded-lg border border-slate-200 bg-white p-1 shadow-lg z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+            <div className="flex items-center space-x-1 sm:space-x-1.5">
+              <div className="relative">
+                <button 
+                  id="student-select-btn"
+                  onClick={() => setShowStudentDropdown(!showStudentDropdown)}
+                  className="flex items-center space-x-2 rounded-lg border border-slate-200 bg-white px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
+                  title="點擊切換住院醫師或管理登入安全"
                 >
-                  <div className="px-2 py-1.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                    切換住院醫師
-                  </div>
-                  {students.map((student) => (
-                    <button
-                      key={student.id}
-                      onClick={() => {
-                        onStudentChange(student.id);
-                        setShowStudentDropdown(false);
-                      }}
-                      className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs ${
-                        student.id === currentStudentId 
-                          ? 'bg-teal-50 text-teal-700 font-bold' 
-                          : 'text-slate-600 hover:bg-slate-50'
+                  <span className="text-sm flex items-center">
+                    {selectedStudent?.avatar && (selectedStudent.avatar.startsWith('data:') || selectedStudent.avatar.startsWith('http')) ? (
+                      <img referrerPolicy="no-referrer" src={selectedStudent.avatar} alt="Avatar" className="h-6 w-6 rounded-full object-cover inline-block ring-1 ring-teal-400" />
+                    ) : (selectedStudent?.avatar || '👨‍⚕️')}
+                  </span>
+                  <span>{selectedStudent?.name} ({selectedStudent?.rLevel})</span>
+                  {residentPasswordRequired && (
+                    <span 
+                      className={`inline-flex items-center rounded-full p-0.5 ${
+                        unlockedStudentIds[currentStudentId]
+                          ? 'text-teal-600 bg-teal-50' 
+                          : 'text-amber-600 bg-amber-50'
                       }`}
+                      title={unlockedStudentIds[currentStudentId] ? '已通過密碼驗證' : '尚未解鎖'}
                     >
-                      <span className="flex items-center space-x-1.5">
-                        <span className="text-sm flex items-center">
-                          {student.avatar && (student.avatar.startsWith('data:') || student.avatar.startsWith('http')) ? (
-                            <img referrerPolicy="no-referrer" src={student.avatar} alt="Avatar" className="h-5 w-5 rounded-full object-cover inline-block ring-1 ring-teal-300" />
-                          ) : (student.avatar || '👨‍⚕️')}
+                      {unlockedStudentIds[currentStudentId] ? (
+                        <Unlock className="h-3 w-3" />
+                      ) : (
+                        <Lock className="h-3 w-3" />
+                      )}
+                    </span>
+                  )}
+                  <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                </button>
+
+                {showStudentDropdown && (
+                  <div 
+                    id="student-dropdown-menu"
+                    className="absolute right-0 mt-1 w-64 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                  >
+                    <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-slate-100">
+                      <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                        切換急診住院醫師
+                      </span>
+                      {residentPasswordRequired && (
+                        <span className="text-[10px] text-teal-700 font-bold bg-teal-50 border border-teal-200 px-1.5 py-0.25 rounded-full flex items-center space-x-1">
+                          <ShieldCheck className="h-2.5 w-2.5" />
+                          <span>密碼防護啟動</span>
                         </span>
-                        <span>{student.name}</span>
-                      </span>
-                      <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1 py-0.25 rounded">
-                        {student.rLevel} ({student.admissionYear}年度)
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                      )}
+                    </div>
+
+                    <div className="max-h-60 overflow-y-auto py-1 space-y-0.5">
+                      {students.map((student) => {
+                        const isUnlocked = !residentPasswordRequired || !!unlockedStudentIds[student.id];
+                        const isCurrent = student.id === currentStudentId;
+
+                        return (
+                          <button
+                            key={student.id}
+                            onClick={() => {
+                              onStudentChange(student.id);
+                              setShowStudentDropdown(false);
+                            }}
+                            className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs transition-colors cursor-pointer ${
+                              isCurrent 
+                                ? 'bg-teal-50 text-teal-800 font-bold' 
+                                : 'text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="flex items-center space-x-2">
+                              <span className="text-sm flex items-center">
+                                {student.avatar && (student.avatar.startsWith('data:') || student.avatar.startsWith('http')) ? (
+                                  <img referrerPolicy="no-referrer" src={student.avatar} alt="Avatar" className="h-5 w-5 rounded-full object-cover inline-block ring-1 ring-teal-300" />
+                                ) : (student.avatar || '👨‍⚕️')}
+                              </span>
+                              <span className="flex flex-col leading-tight">
+                                <span className="font-bold text-slate-800 flex items-center space-x-1">
+                                  <span>{student.name}</span>
+                                  {isCurrent && (
+                                    <span className="text-[9px] bg-teal-600 text-white px-1 rounded">目前</span>
+                                  )}
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {student.rLevel} ({student.admissionYear}年度)
+                                </span>
+                              </span>
+                            </span>
+
+                            <span className="flex items-center space-x-1">
+                              {residentPasswordRequired && (
+                                isUnlocked ? (
+                                  <span className="text-[10px] text-teal-600 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded flex items-center space-x-0.5">
+                                    <Unlock className="h-2.5 w-2.5" />
+                                    <span>已解鎖</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded flex items-center space-x-0.5">
+                                    <Lock className="h-2.5 w-2.5" />
+                                    <span>需密碼</span>
+                                  </span>
+                                )
+                              )}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Resident Quick Security Actions Footer */}
+                    <div className="border-t border-slate-150 pt-1.5 mt-1 space-y-1">
+                      {onOpenChangePassword && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowStudentDropdown(false);
+                            onOpenChangePassword();
+                          }}
+                          className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-left text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                        >
+                          <KeyRound className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                          <span>修改【{selectedStudent?.name}】登入密碼</span>
+                        </button>
+                      )}
+
+                      {residentPasswordRequired && onLockCurrentStudent && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowStudentDropdown(false);
+                            onLockCurrentStudent();
+                          }}
+                          className="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-left text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                        >
+                          <Lock className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                          <span>鎖定帳號（離開時防被他人改動）</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Lock Button for Current Resident */}
+              {residentPasswordRequired && onLockCurrentStudent && unlockedStudentIds[currentStudentId] && (
+                <button
+                  type="button"
+                  onClick={onLockCurrentStudent}
+                  className="hidden sm:inline-flex items-center space-x-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-600 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-colors cursor-pointer"
+                  title="點擊立即鎖定此帳戶，防範他人隨意修改紀錄"
+                >
+                  <Lock className="h-3.5 w-3.5 text-slate-500 hover:text-rose-600" />
+                  <span className="text-[11px]">鎖定</span>
+                </button>
               )}
             </div>
           ) : (

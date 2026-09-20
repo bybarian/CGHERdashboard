@@ -37,6 +37,7 @@ export interface Student {
   rotationRolled?: Record<number, boolean>;          // key: month index (1-12)
   homeworkRolled?: Record<string, boolean>;          // key: homeworkId
   avatar?: string;
+  password?: string; // 專屬個人登入密碼 (預設: 1234)
   mentorName?: string; // 專屬臨床導師姓名
   mentorTitle?: string; // 導師職稱 (例：急診專科主治醫師 / 教學副主任)
   currentOngoingMonth?: number;
@@ -698,6 +699,7 @@ export const PRELOADED_STUDENTS: Student[] = [
     level: 1,
     mentorName: '鍾睿元',
     mentorTitle: '急診專任主治醫師 / 教學指導導師',
+    password: '1234',
     schedule: ['adult-er', 'adult-er', 'neuro', 'peds', 'peds', 'obgyn', 'oph', 'ent', 'ems', 'adult-er', 'adult-er', 'adult-er'],
     rotationStatus: {
       1: { completed: true, notes: '學習了基礎成人急診檢傷分類與一般內外科急症處置。', fileUrl: 'certificate-placeholder', fileName: 'R1_Jan_ER_Certificate.pdf', status: 'approved', submittedAt: '2026-01-31' },
@@ -723,6 +725,7 @@ export const PRELOADED_STUDENTS: Student[] = [
     level: 3,
     mentorName: '張昱',
     mentorTitle: '急診專任主治醫師 / 教學指導導師',
+    password: '1234',
     schedule: ['psych', 'icu', 'icu', 'echo', 'echo', 'elective', 'elective', 'adult-er', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
     rotationStatus: {
       1: { completed: true, notes: '完成精神科訓練，精熟暴力病人鎮靜藥物與強制就醫流程。', fileUrl: 'certificate-placeholder', fileName: 'R2_Jan_Psych.pdf', status: 'approved', submittedAt: '2026-01-31' },
@@ -753,6 +756,7 @@ export const PRELOADED_STUDENTS: Student[] = [
     level: 5,
     mentorName: '吳妍萱',
     mentorTitle: '急診專任主治醫師 / 教學指導導師',
+    password: '1234',
     schedule: ['toxicology', 'toxicology', 'disaster', 'disaster', 'remote', 'remote', 'icu', 'icu', 'adult-er', 'adult-er', 'adult-er', 'adult-er'],
     rotationStatus: {
       1: { completed: true, notes: '毒物科第一個月，學習常見農藥與安眠藥物中毒處置。', fileUrl: 'certificate-placeholder', fileName: 'R3_Jan_Tox_Cert.pdf', status: 'approved', submittedAt: '2026-01-31' },
@@ -786,6 +790,7 @@ export const PRELOADED_STUDENTS: Student[] = [
     level: 8,
     mentorName: '李宥霆',
     mentorTitle: '急診專任主治醫師 / 教學指導導師',
+    password: '1234',
     schedule: ['admin', 'admin', 'micu', 'adult-er', 'adult-er', 'adult-er', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training', 'completed-training'],
     rotationStatus: {
       1: { completed: true, notes: '擔任總醫師行政職，負責全科排班與行政客訴處理。', fileUrl: 'certificate-placeholder', fileName: 'R4_Jan_Admin_CR.pdf', status: 'approved', submittedAt: '2026-01-31' },
