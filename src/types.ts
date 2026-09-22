@@ -1,3 +1,5 @@
+import { HandbookProgress } from './data/handbookData';
+
 export type RLevel = 'R1' | 'R2' | 'R3' | 'R4';
 export type ClockMode = 'auto' | 'manual';
 
@@ -44,6 +46,7 @@ export interface Student {
   curriculumCompleted?: Record<string, boolean>; // key: curriculum item id, e.g. 'echo-basic'
   promotionStatus?: PromotionStatus;
   promotionHistory?: PromotionRecord[];
+  handbookProgress?: HandbookProgress;
 }
 
 export interface SubmissionStatus {

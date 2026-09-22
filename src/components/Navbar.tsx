@@ -19,7 +19,9 @@ import {
   Clock,
   Zap,
   KeyRound,
-  ShieldCheck
+  ShieldCheck,
+  Users,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Student, RLevel, ClockMode } from '../types';
 
@@ -124,7 +126,7 @@ export default function Navbar({
           </div>
         </div>
 
-        {/* Dynamic XP Progress & Info (Hidden for Teacher view and compact screens) */}
+        {/* Dynamic XP Progress & Info (For Resident view or Teacher inspecting student) */}
         {!isTeacher && selectedStudent && (
           <div className="hidden lg:flex items-center space-x-4 xl:space-x-6 shrink-0 mx-2">
             {/* Student Info Badge */}
@@ -158,6 +160,29 @@ export default function Navbar({
                 />
               </div>
             </div>
+          </div>
+        )}
+
+        {isTeacher && (
+          <div className="hidden lg:flex items-center space-x-3 shrink-0 mx-2">
+            <div className="flex items-center space-x-2 rounded-lg bg-indigo-50/80 px-3 py-1 border border-indigo-200">
+              <Crown className="h-4 w-4 text-indigo-600 shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 leading-tight">
+                  指導教師督導模式
+                </span>
+                <span className="text-[11px] font-bold text-slate-600 leading-tight">
+                  可全覽所有學員儀表板與輪訓地圖
+                </span>
+              </div>
+            </div>
+            {selectedStudent && activeTab !== 'teacher' && (
+              <div className="flex items-center space-x-1.5 text-xs bg-slate-100/80 px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700">
+                <span className="text-slate-500 font-medium">當前檢視:</span>
+                <span className="font-extrabold text-slate-900">{selectedStudent.name}</span>
+                <span className="bg-teal-600 text-white font-bold text-[10px] px-1 rounded font-mono">{selectedStudent.rLevel}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -320,9 +345,93 @@ export default function Navbar({
               )}
             </div>
           ) : (
-            <div className="flex items-center space-x-1.5 rounded-lg bg-indigo-50 border border-indigo-100 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-indigo-700">
-              <Crown className="h-4 w-4 text-indigo-600 shrink-0" />
-              <span>教師管理</span>
+            <div className="flex items-center space-x-1.5">
+              <div className="hidden sm:flex items-center space-x-1 rounded-lg bg-indigo-50 border border-indigo-200 px-2 sm:px-2.5 py-1.5 text-xs font-black text-indigo-700">
+                <Crown className="h-4 w-4 text-indigo-600 shrink-0" />
+                <span>指導教師</span>
+              </div>
+
+              {/* Teacher Resident Switcher Dropdown */}
+              <div className="relative">
+                <button 
+                  id="teacher-student-select-btn"
+                  onClick={() => setShowStudentDropdown(!showStudentDropdown)}
+                  className="flex items-center space-x-1.5 sm:space-x-2 rounded-lg border border-indigo-200 bg-white px-2.5 sm:px-3 py-1.5 text-xs font-bold text-slate-800 shadow-xs hover:bg-indigo-50/50 hover:border-indigo-300 transition-colors cursor-pointer"
+                  title="教師權限：直接切換全院任何急診住院醫師以檢視其儀表板與輪訓地圖"
+                >
+                  <span className="text-sm flex items-center">
+                    {selectedStudent?.avatar && (selectedStudent.avatar.startsWith('data:') || selectedStudent.avatar.startsWith('http')) ? (
+                      <img referrerPolicy="no-referrer" src={selectedStudent.avatar} alt="Avatar" className="h-5 w-5 rounded-full object-cover inline-block ring-1 ring-indigo-400" />
+                    ) : (selectedStudent?.avatar || '👨‍⚕️')}
+                  </span>
+                  <span className="font-extrabold text-slate-800 max-w-[80px] sm:max-w-none truncate">{selectedStudent?.name}</span>
+                  <span className="bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">
+                    {selectedStudent?.rLevel}
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 text-indigo-500" />
+                </button>
+
+                {showStudentDropdown && (
+                  <div 
+                    id="teacher-student-dropdown-menu"
+                    className="absolute right-0 mt-1 w-72 rounded-xl border border-indigo-200 bg-white p-2 shadow-2xl z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                  >
+                    <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-indigo-100 mb-1">
+                      <span className="text-[11px] font-black tracking-wider text-indigo-800 uppercase flex items-center space-x-1">
+                        <Users className="h-3.5 w-3.5" />
+                        <span>督導學員名冊 ({students.length} 位)</span>
+                      </span>
+                      <span className="text-[9px] bg-indigo-50 text-indigo-700 font-bold px-1.5 py-0.25 rounded border border-indigo-200">
+                        免密碼全覽
+                      </span>
+                    </div>
+
+                    <div className="max-h-64 overflow-y-auto py-1 space-y-0.5">
+                      {students.map((student) => {
+                        const isCurrent = student.id === currentStudentId;
+
+                        return (
+                          <button
+                            key={student.id}
+                            onClick={() => {
+                              onStudentChange(student.id);
+                              setShowStudentDropdown(false);
+                            }}
+                            className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors cursor-pointer ${
+                              isCurrent 
+                                ? 'bg-indigo-50 text-indigo-900 font-extrabold border border-indigo-200' 
+                                : 'text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="flex items-center space-x-2">
+                              <span className="text-sm flex items-center">
+                                {student.avatar && (student.avatar.startsWith('data:') || student.avatar.startsWith('http')) ? (
+                                  <img referrerPolicy="no-referrer" src={student.avatar} alt="Avatar" className="h-5 w-5 rounded-full object-cover inline-block ring-1 ring-indigo-300" />
+                                ) : (student.avatar || '👨‍⚕️')}
+                              </span>
+                              <span className="flex flex-col leading-tight">
+                                <span className="font-bold text-slate-800 flex items-center space-x-1">
+                                  <span>{student.name} 醫師</span>
+                                  {isCurrent && (
+                                    <span className="text-[9px] bg-indigo-600 text-white px-1 rounded font-bold">檢視中</span>
+                                  )}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {student.rLevel} ({student.admissionYear}年班) ‧ 導師: {student.mentorName || '未指派'}
+                                </span>
+                              </span>
+                            </span>
+
+                            <span className="text-[10px] font-mono text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.5 rounded">
+                              {student.xp} XP
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -376,66 +485,98 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* Tabs navigation for Students */}
-      {!isTeacher && (
-        <div className="border-t border-slate-100 bg-slate-50/50">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <nav className="flex space-x-6 overflow-x-auto py-1" aria-label="Tabs">
+      {/* Tabs navigation for Students and Teachers */}
+      <div className="border-t border-slate-100 bg-slate-50/70">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <nav className="flex space-x-3 sm:space-x-6 overflow-x-auto py-1" aria-label="Tabs">
+            {/* If Teacher, offer Teacher Admin Console Tab first */}
+            {isTeacher && (
               <button
-                id="tab-dashboard"
-                onClick={() => setActiveTab('dashboard')}
-                className={`flex items-center space-x-1.5 border-b-2 px-1 py-2.5 text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeTab === 'dashboard'
-                    ? 'border-teal-600 text-teal-600'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                id="tab-teacher"
+                onClick={() => setActiveTab('teacher')}
+                className={`flex items-center space-x-1.5 border-b-2 px-2 py-2.5 text-xs font-black whitespace-nowrap transition-all cursor-pointer ${
+                  activeTab === 'teacher'
+                    ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50 rounded-t'
+                    : 'border-transparent text-slate-600 hover:border-slate-300 hover:text-indigo-700'
                 }`}
               >
-                <Monitor className="h-4 w-4" />
-                <span>學習主儀表板</span>
+                <Crown className="h-4 w-4 text-indigo-600" />
+                <span>教師管理與審查後台</span>
               </button>
+            )}
 
-              <button
-                id="tab-monopoly"
-                onClick={() => setActiveTab('monopoly')}
-                className={`flex items-center space-x-1.5 border-b-2 px-1 py-2.5 text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeTab === 'monopoly'
-                    ? 'border-teal-600 text-teal-600'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
-                }`}
-              >
-                <Map className="h-4 w-4" />
-                <span>輪訓地圖</span>
-              </button>
+            <button
+              id="tab-dashboard"
+              onClick={() => setActiveTab('dashboard')}
+              className={`flex items-center space-x-1.5 border-b-2 px-1 py-2.5 text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'dashboard'
+                  ? (isTeacher ? 'border-indigo-600 text-indigo-700' : 'border-teal-600 text-teal-600')
+                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+              }`}
+            >
+              <Monitor className="h-4 w-4" />
+              <span>{isTeacher ? `學員主儀表板 (${selectedStudent?.name || ''})` : '學習主儀表板'}</span>
+            </button>
 
-              <button
-                id="tab-courses"
-                onClick={() => setActiveTab('courses')}
-                className={`flex items-center space-x-1.5 border-b-2 px-1 py-2.5 text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeTab === 'courses'
-                    ? 'border-teal-600 text-teal-600'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
-                }`}
-              >
-                <AlertCircle className="h-4 w-4" />
-                <span>學會必修課程</span>
-              </button>
+            <button
+              id="tab-monopoly"
+              onClick={() => setActiveTab('monopoly')}
+              className={`flex items-center space-x-1.5 border-b-2 px-1 py-2.5 text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'monopoly'
+                  ? (isTeacher ? 'border-indigo-600 text-indigo-700' : 'border-teal-600 text-teal-600')
+                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+              }`}
+            >
+              <Map className="h-4 w-4" />
+              <span>{isTeacher ? `12個月輪訓地圖 (${selectedStudent?.name || ''})` : '輪訓地圖'}</span>
+            </button>
 
-              <button
-                id="tab-homework"
-                onClick={() => setActiveTab('homework')}
-                className={`flex items-center space-x-1.5 border-b-2 px-1 py-2.5 text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeTab === 'homework'
-                    ? 'border-teal-600 text-teal-600'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
-                }`}
-              >
-                <BookOpen className="h-4 w-4" />
-                <span>每月臨床作業</span>
-              </button>
-            </nav>
-          </div>
+            <button
+              id="tab-courses"
+              onClick={() => setActiveTab('courses')}
+              className={`flex items-center space-x-1.5 border-b-2 px-1 py-2.5 text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'courses'
+                  ? (isTeacher ? 'border-indigo-600 text-indigo-700' : 'border-teal-600 text-teal-600')
+                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+              }`}
+            >
+              <AlertCircle className="h-4 w-4" />
+              <span>學會必修課程</span>
+            </button>
+
+            <button
+              id="tab-homework"
+              onClick={() => setActiveTab('homework')}
+              className={`flex items-center space-x-1.5 border-b-2 px-1 py-2.5 text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'homework'
+                  ? (isTeacher ? 'border-indigo-600 text-indigo-700' : 'border-teal-600 text-teal-600')
+                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+              }`}
+            >
+              <BookOpen className="h-4 w-4" />
+              <span>每月臨床作業</span>
+            </button>
+
+            <button
+              id="tab-handbook"
+              onClick={() => setActiveTab('handbook')}
+              className={`flex items-center space-x-1.5 border-b-2 px-1 py-2.5 text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                activeTab === 'handbook'
+                  ? (isTeacher ? 'border-indigo-600 text-indigo-700 font-black' : 'border-teal-600 text-teal-600 font-black')
+                  : 'border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-800'
+              }`}
+            >
+              <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+              <span className="flex items-center space-x-1">
+                <span>住院醫師工作手冊</span>
+                <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1 rounded">
+                  Excel
+                </span>
+              </span>
+            </button>
+          </nav>
         </div>
-      )}
+      </div>
 
       {/* Teacher Authentication Modal */}
       {showTeacherModal && (

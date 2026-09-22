@@ -38,7 +38,9 @@ import {
   UserPlus,
   Eye,
   EyeOff,
-  KeyRound
+  KeyRound,
+  Monitor,
+  Map
 } from 'lucide-react';
 import { 
   Student, 
@@ -128,7 +130,7 @@ interface TeacherViewProps {
   residentPasswordRequired?: boolean;
   onToggleResidentPasswordRequired?: (enabled: boolean) => void;
   onResetStudentPassword?: (studentId: string, newPassword?: string) => Promise<void>;
-  onInspectStudent?: (studentId: string) => void;
+  onInspectStudent?: (studentId: string, targetTab?: 'dashboard' | 'monopoly' | 'courses' | 'homework' | 'handbook') => void;
 }
 
 export default function TeacherView({
@@ -898,9 +900,34 @@ export default function TeacherView({
           </button>
         </div>
 
-        <div className="flex items-center space-x-1 text-slate-500 text-xs">
-          <Users className="h-4 w-4 text-indigo-600" />
-          <span>管理對象：<strong>{students.length} 位急診住院醫師 (R1-R4)</strong></span>
+        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+          <div className="flex items-center space-x-1.5 bg-indigo-50/80 border border-indigo-200/80 px-2.5 py-1 rounded-lg text-xs">
+            <Users className="h-3.5 w-3.5 text-indigo-600" />
+            <span className="text-slate-700">共 <strong className="text-indigo-950 font-black">{students.length}</strong> 位醫師</span>
+          </div>
+
+          {onInspectStudent && students.length > 0 && (
+            <div className="flex items-center space-x-1.5">
+              <button
+                type="button"
+                onClick={() => onInspectStudent(selectedManageStudentId || students[0].id, 'dashboard')}
+                className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                title="直接查看選取學員之學習主儀表板"
+              >
+                <Monitor className="h-3.5 w-3.5" />
+                <span>查看學員儀表板</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onInspectStudent(selectedManageStudentId || students[0].id, 'monopoly')}
+                className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                title="直接查看選取學員之12個月大富翁輪訓地圖"
+              >
+                <Map className="h-3.5 w-3.5" />
+                <span>查看輪訓地圖</span>
+              </button>
+            </div>
+          )}
         </div>
 
       </div>
@@ -962,7 +989,7 @@ export default function TeacherView({
                     
                     {/* Item title header */}
                     <div className="bg-slate-900/5 px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                         <span className="font-extrabold text-slate-900">
                           {item.studentName} 醫師 ({item.studentRLevel})
                         </span>
@@ -970,6 +997,19 @@ export default function TeacherView({
                         <span className="rounded bg-indigo-100 font-bold px-1.5 py-0.5 text-indigo-800 text-[10px]">
                           {item.type === 'rotation' ? '科別輪訓完畢申報' : item.type === 'course' ? '學會證書申報' : '每月臨床作業'}
                         </span>
+                        {onInspectStudent && (
+                          <div className="flex items-center space-x-1 ml-1">
+                            <button
+                              type="button"
+                              onClick={() => onInspectStudent(item.studentId, item.type === 'rotation' ? 'monopoly' : (item.type === 'course' ? 'courses' : 'homework'))}
+                              className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold border border-indigo-200 text-[10px] transition-colors cursor-pointer"
+                              title="前往檢視此學員該模組進度"
+                            >
+                              <ArrowUpRight className="h-3 w-3" />
+                              <span>前往檢視</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                       
                       {item.submittedAt && (
@@ -1502,7 +1542,29 @@ export default function TeacherView({
                         </td>
 
                         <td className="py-3 px-3 text-right">
-                          <div className="flex items-center justify-end space-x-1.5">
+                          <div className="flex items-center justify-end space-x-1.5 flex-wrap gap-y-1">
+                            {onInspectStudent && (
+                              <div className="inline-flex items-center space-x-1">
+                                <button
+                                  type="button"
+                                  onClick={() => onInspectStudent(st.id, 'dashboard')}
+                                  className="px-2 py-1 rounded bg-slate-100 hover:bg-indigo-50 text-indigo-700 hover:text-indigo-900 border border-slate-200 text-[10px] font-bold transition-colors cursor-pointer flex items-center space-x-0.5"
+                                  title={`檢視 ${st.name} 醫師學習主儀表板`}
+                                >
+                                  <Monitor className="h-2.5 w-2.5" />
+                                  <span>儀表板</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onInspectStudent(st.id, 'monopoly')}
+                                  className="px-2 py-1 rounded bg-slate-100 hover:bg-teal-50 text-teal-700 hover:text-teal-900 border border-slate-200 text-[10px] font-bold transition-colors cursor-pointer flex items-center space-x-0.5"
+                                  title={`檢視 ${st.name} 醫師12個月輪訓地圖`}
+                                >
+                                  <Map className="h-2.5 w-2.5" />
+                                  <span>地圖</span>
+                                </button>
+                              </div>
+                            )}
                             {isMax ? (
                               <span className="text-[11px] text-purple-700 font-bold">最高訓練層級</span>
                             ) : isPending ? (
@@ -1635,16 +1697,40 @@ export default function TeacherView({
                 </h3>
               </div>
               
-              {/* Resident selector */}
-              <select
-                value={selectedScheduleStudentId}
-                onChange={(e) => handleSelectStudentForSchedule(e.target.value)}
-                className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-700 focus:outline-none"
-              >
-                {students.map(s => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.rLevel})</option>
-                ))}
-              </select>
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                {onInspectStudent && selectedScheduleStudent && (
+                  <div className="inline-flex items-center space-x-1">
+                    <button
+                      type="button"
+                      onClick={() => onInspectStudent(selectedScheduleStudent.id, 'monopoly')}
+                      className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-bold transition-colors cursor-pointer"
+                      title="立即前往查看該醫師之12個月大富翁輪訓地圖"
+                    >
+                      <Map className="h-3.5 w-3.5 text-teal-600" />
+                      <span>查看輪訓地圖</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onInspectStudent(selectedScheduleStudent.id, 'dashboard')}
+                      className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-bold transition-colors cursor-pointer"
+                      title="立即前往查看該醫師之學習主儀表板"
+                    >
+                      <Monitor className="h-3.5 w-3.5 text-indigo-600" />
+                      <span>查看儀表板</span>
+                    </button>
+                  </div>
+                )}
+                {/* Resident selector */}
+                <select
+                  value={selectedScheduleStudentId}
+                  onChange={(e) => handleSelectStudentForSchedule(e.target.value)}
+                  className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-700 focus:outline-none font-bold bg-white cursor-pointer"
+                >
+                  {students.map(s => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.rLevel})</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {selectedScheduleStudent && (
@@ -2300,6 +2386,37 @@ export default function TeacherView({
                       </strong>
                     </div>
                   </div>
+                  {onInspectStudent && (
+                    <div className="pt-2 border-t border-slate-200/60 grid grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onInspectStudent(selectedManageStudent.id, 'dashboard')}
+                        className="inline-flex items-center justify-center space-x-1 py-1.5 px-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold transition-colors cursor-pointer shadow-xs"
+                        title="立即前往查看該醫師之學習主儀表板"
+                      >
+                        <Monitor className="h-3.5 w-3.5" />
+                        <span>主儀表板</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onInspectStudent(selectedManageStudent.id, 'monopoly')}
+                        className="inline-flex items-center justify-center space-x-1 py-1.5 px-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold transition-colors cursor-pointer shadow-xs"
+                        title="立即前往查看該醫師之12個月大富翁輪訓地圖"
+                      >
+                        <Map className="h-3.5 w-3.5" />
+                        <span>輪訓地圖</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onInspectStudent(selectedManageStudent.id, 'handbook')}
+                        className="inline-flex items-center justify-center space-x-1 py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-colors cursor-pointer shadow-xs"
+                        title="立即前往查看該醫師之工作手冊並可匯出Excel"
+                      >
+                        <FileSpreadsheet className="h-3.5 w-3.5" />
+                        <span>工作手冊</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2631,15 +2748,26 @@ export default function TeacherView({
 
                       {/* Inspect as student */}
                       {onInspectStudent && (
-                        <button
-                          type="button"
-                          onClick={() => onInspectStudent(selectedManageStudent.id)}
-                          className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-2xs"
-                          title="直接以該醫師身分切換至個人儀表板查看，免輸入密碼"
-                        >
-                          <ArrowRight className="h-3 w-3" />
-                          <span>免密碼進入查閱</span>
-                        </button>
+                        <div className="inline-flex items-center space-x-1">
+                          <button
+                            type="button"
+                            onClick={() => onInspectStudent(selectedManageStudent.id, 'dashboard')}
+                            className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-2xs"
+                            title="前往查閱該醫師之學習主儀表板"
+                          >
+                            <Monitor className="h-3 w-3" />
+                            <span>查閱儀表板</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onInspectStudent(selectedManageStudent.id, 'monopoly')}
+                            className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-2xs"
+                            title="前往查閱該醫師之12個月輪訓地圖"
+                          >
+                            <Map className="h-3 w-3" />
+                            <span>查閱輪訓地圖</span>
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -2761,15 +2889,26 @@ export default function TeacherView({
                                   重設 1234
                                 </button>
                                 {onInspectStudent && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onInspectStudent(st.id)}
-                                    className="px-2 py-1 rounded bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-[10px] font-bold transition-colors cursor-pointer flex items-center space-x-0.5"
-                                    title="以該醫師身分進入查看"
-                                  >
-                                    <span>進入查看</span>
-                                    <ArrowRight className="h-2.5 w-2.5" />
-                                  </button>
+                                  <div className="inline-flex items-center space-x-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => onInspectStudent(st.id, 'dashboard')}
+                                      className="px-2 py-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[10px] font-bold transition-colors cursor-pointer flex items-center space-x-0.5"
+                                      title="以教師身分查看該醫師學習主儀表板"
+                                    >
+                                      <Monitor className="h-2.5 w-2.5" />
+                                      <span>儀表板</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => onInspectStudent(st.id, 'monopoly')}
+                                      className="px-2 py-1 rounded bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-[10px] font-bold transition-colors cursor-pointer flex items-center space-x-0.5"
+                                      title="以教師身分查看該醫師12個月輪訓地圖"
+                                    >
+                                      <Map className="h-2.5 w-2.5" />
+                                      <span>輪訓地圖</span>
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             </td>

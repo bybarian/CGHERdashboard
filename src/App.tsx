@@ -22,9 +22,11 @@ import RotationBoard from './components/RotationBoard';
 import CoursesView from './components/CoursesView';
 import HomeworkView from './components/HomeworkView';
 import TeacherView from './components/TeacherView';
+import HandbookView from './components/HandbookView';
 import ResidentAuthModal from './components/ResidentAuthModal';
 import ChangePasswordModal from './components/ChangePasswordModal';
-import { Trophy, Award, Sparkles, CheckCircle2, Star, Activity, X, BookOpen, Crown, Monitor, Map, AlertCircle } from 'lucide-react';
+import { HandbookProgress } from './data/handbookData';
+import { Trophy, Award, Sparkles, CheckCircle2, Star, Activity, X, BookOpen, Crown, Monitor, Map, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { 
   collection, 
   doc, 
@@ -314,14 +316,32 @@ export default function App() {
   const currentStudent = students.find(s => s.id === currentStudentId);
 
   // Switch active resident
-  const handleStudentChange = (id: string) => {
-    // If selecting the currently active student and it's already unlocked or password is not required
-    if (id === currentStudentId && (unlockedStudentIds[id] || !residentPasswordRequired || isTeacher)) {
+  const handleStudentChange = (id: string, targetTab?: string) => {
+    // If teacher mode is active, completely bypass passwords and switch resident instantly
+    if (isTeacher) {
+      setCurrentStudentId(id);
+      try {
+        localStorage.setItem('em_residents_current_student_id', id);
+      } catch {}
+      if (targetTab) {
+        setActiveTab(targetTab);
+      } else if (activeTab === 'teacher') {
+        setActiveTab('dashboard');
+      }
+      const s = students.find(x => x.id === id);
+      setXpBannerText(`教師督導：已切換至【${s?.name || ''} 醫師】歷程`);
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 2500);
       return;
     }
 
-    // If teacher mode or global password check is disabled or resident already unlocked in this session
-    if (isTeacher || !residentPasswordRequired || unlockedStudentIds[id]) {
+    // If selecting the currently active student and it's already unlocked or password is not required
+    if (id === currentStudentId && (unlockedStudentIds[id] || !residentPasswordRequired)) {
+      return;
+    }
+
+    // If global password check is disabled or resident already unlocked in this session
+    if (!residentPasswordRequired || unlockedStudentIds[id]) {
       setCurrentStudentId(id);
       try {
         localStorage.setItem('em_residents_current_student_id', id);
@@ -391,16 +411,23 @@ export default function App() {
   };
 
   // Teacher action: Inspect student directly without password
-  const handleInspectStudent = (studentId: string) => {
+  const handleInspectStudent = (studentId: string, targetTab: 'dashboard' | 'monopoly' | 'courses' | 'homework' | 'handbook' = 'dashboard') => {
     setUnlockedStudentIds(prev => ({ ...prev, [studentId]: true }));
     setCurrentStudentId(studentId);
     try {
       localStorage.setItem('em_residents_current_student_id', studentId);
     } catch {}
-    setIsTeacher(false);
-    setActiveTab('dashboard');
+    setIsTeacher(true);
+    setActiveTab(targetTab);
     const s = students.find(x => x.id === studentId);
-    setXpBannerText(`以導師權限進入【${s?.name || ''} 醫師】個人儀表板 (已自動解鎖)`);
+    const tabName = targetTab === 'monopoly' 
+      ? '12個月輪訓地圖' 
+      : (targetTab === 'courses' 
+        ? '學會必修課程' 
+        : (targetTab === 'homework' 
+          ? '每月臨床作業' 
+          : (targetTab === 'handbook' ? '住院醫師工作手冊 (含Excel匯出)' : '學習主儀表板')));
+    setXpBannerText(`正在以指導教師身分督導【${s?.name || ''} 醫師】的${tabName}`);
     setShowXpBanner(true);
     setTimeout(() => setShowXpBanner(false), 3000);
   };
@@ -438,6 +465,10 @@ export default function App() {
     if (password === '00000') {
       setIsTeacher(true);
       localStorage.setItem('em_residents_isteacher', 'true');
+      setActiveTab('teacher');
+      setXpBannerText('教師認證成功！已進入指導教師模式，可管理後台並全權查閱所有學員儀表板與輪訓地圖。');
+      setShowXpBanner(true);
+      setTimeout(() => setShowXpBanner(false), 3500);
       return true;
     }
     return false;
@@ -447,6 +478,9 @@ export default function App() {
     setIsTeacher(false);
     localStorage.setItem('em_residents_isteacher', 'false');
     setActiveTab('dashboard');
+    setXpBannerText('已安全登出指導教師模式，返回急診住院醫師個人視角。');
+    setShowXpBanner(true);
+    setTimeout(() => setShowXpBanner(false), 3000);
   };
 
   // Student action: Submit elements
@@ -1098,6 +1132,30 @@ export default function App() {
     }
   };
 
+  const handleUpdateHandbookProgress = async (updatedProgress: HandbookProgress) => {
+    if (!currentStudentId) return;
+    const student = students.find(s => s.id === currentStudentId);
+    if (!student) return;
+
+    try {
+      setStudents(prev => prev.map(s => {
+        if (s.id === currentStudentId) {
+          return {
+            ...s,
+            handbookProgress: updatedProgress
+          };
+        }
+        return s;
+      }));
+
+      await updateDoc(doc(db, 'students', currentStudentId), {
+        handbookProgress: updatedProgress
+      });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'students/' + currentStudentId);
+    }
+  };
+
   const handleDeleteStudent = async (studentId: string) => {
     try {
       await deleteDoc(doc(db, 'students', studentId));
@@ -1235,17 +1293,98 @@ export default function App() {
                 <div className="space-y-1.5">
                   <button
                     onClick={() => {
+                      setActiveTab('teacher');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`flex w-full items-center space-x-2.5 rounded-lg px-3 py-2.5 text-xs font-black transition-all ${
+                      activeTab === 'teacher' 
+                        ? 'bg-indigo-600 text-white shadow-sm' 
+                        : 'text-indigo-200 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    <Crown className="h-4 w-4 text-amber-400" />
+                    <span>教師管理與審查後台</span>
+                  </button>
+
+                  <div className="pt-3 pb-1 px-2 border-t border-white/10 mt-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-300 block">
+                      督導學員視角 {currentStudent ? `(${currentStudent.name})` : ''}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => {
                       setActiveTab('dashboard');
                       setIsSidebarOpen(false);
                     }}
-                    className={`flex w-full items-center space-x-2.5 rounded-lg px-3 py-2 text-xs font-bold transition-all ${
+                    className={`flex w-full items-center space-x-2.5 rounded-lg px-3 py-2.5 text-xs font-bold transition-all ${
                       activeTab === 'dashboard' 
-                        ? 'bg-teal-600 text-white shadow-sm' 
+                        ? 'bg-indigo-600 text-white shadow-sm' 
                         : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
                     }`}
                   >
-                    <Crown className="h-4 w-4" />
-                    <span>教師管理後台</span>
+                    <Monitor className="h-4 w-4" />
+                    <span>學習主儀表板</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('monopoly');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`flex w-full items-center space-x-2.5 rounded-lg px-3 py-2.5 text-xs font-bold transition-all ${
+                      activeTab === 'monopoly' 
+                        ? 'bg-indigo-600 text-white shadow-sm' 
+                        : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                    }`}
+                  >
+                    <Map className="h-4 w-4" />
+                    <span>12 個月輪訓地圖</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('courses');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`flex w-full items-center space-x-2.5 rounded-lg px-3 py-2.5 text-xs font-bold transition-all ${
+                      activeTab === 'courses' 
+                        ? 'bg-indigo-600 text-white shadow-sm' 
+                        : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                    }`}
+                  >
+                    <AlertCircle className="h-4 w-4" />
+                    <span>學會必修課程</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('homework');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`flex w-full items-center space-x-2.5 rounded-lg px-3 py-2.5 text-xs font-bold transition-all ${
+                      activeTab === 'homework' 
+                        ? 'bg-indigo-600 text-white shadow-sm' 
+                        : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                    }`}
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    <span>每月臨床作業</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('handbook');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`flex w-full items-center space-x-2.5 rounded-lg px-3 py-2.5 text-xs font-bold transition-all ${
+                      activeTab === 'handbook' 
+                        ? 'bg-indigo-600 text-white shadow-sm' 
+                        : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                    }`}
+                  >
+                    <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+                    <span>住院醫師工作手冊 (Excel)</span>
                   </button>
                 </div>
               ) : (
@@ -1309,6 +1448,21 @@ export default function App() {
                     <BookOpen className="h-4 w-4" />
                     <span>每月臨床作業</span>
                   </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('handbook');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`flex w-full items-center space-x-2.5 rounded-lg px-3 py-2.5 text-xs font-bold transition-all ${
+                      activeTab === 'handbook' 
+                        ? 'bg-teal-600 text-white shadow-sm shadow-teal-900/40' 
+                        : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                    }`}
+                  >
+                    <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+                    <span>住院醫師工作手冊 (Excel)</span>
+                  </button>
                 </div>
               )}
             </nav>
@@ -1325,8 +1479,8 @@ export default function App() {
       {/* Main Layout Container */}
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         
-        {isTeacher ? (
-          // 1. Teacher Panel View
+        {isTeacher && activeTab === 'teacher' ? (
+          // 1. Teacher Management & Approval Panel View
           <TeacherView
             students={students}
             onApproveReject={handleApproveReject}
@@ -1358,10 +1512,67 @@ export default function App() {
             onInspectStudent={handleInspectStudent}
           />
         ) : (
-          // 2. Student Resident Active View
+          // 2. Student Resident Active View (Supervised by Teacher or viewed directly by Student)
           currentStudent && (
             <div className="space-y-6">
               
+              {/* Teacher Supervision Banner when Teacher is viewing any student screen */}
+              {isTeacher && (
+                <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-white p-3.5 sm:p-4 rounded-2xl border border-indigo-700/60 shadow-md flex flex-wrap items-center justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="h-10 w-10 rounded-xl bg-indigo-600/50 border border-indigo-400/40 flex items-center justify-center text-xl shrink-0">
+                      👑
+                    </div>
+                    <div>
+                      <div className="flex items-center flex-wrap gap-2">
+                        <span className="text-[10px] font-black bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                          指導教師督導檢視
+                        </span>
+                        <span className="text-sm sm:text-base font-extrabold text-white flex items-center space-x-1.5">
+                          <span>{currentStudent.name} 醫師</span>
+                          <span className="text-xs bg-indigo-500/60 border border-indigo-400/60 px-1.5 py-0.25 rounded font-mono">
+                            {currentStudent.rLevel}
+                          </span>
+                        </span>
+                        <span className="text-xs text-indigo-300 font-mono">
+                          ({currentStudent.admissionYear}年班 ‧ 總計 {currentStudent.xp} XP)
+                        </span>
+                      </div>
+                      <p className="text-xs text-indigo-200/90 mt-0.5">
+                        您正以教師身分完整查閱此學員的各項學習指標、大富翁輪訓地圖與臨床進度
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    {/* Quick Switch Resident Selector */}
+                    <div className="flex items-center space-x-1 bg-indigo-900/80 border border-indigo-500/50 rounded-lg px-2 py-1">
+                      <span className="text-[10px] font-bold text-indigo-200">切換學員:</span>
+                      <select
+                        value={currentStudent.id}
+                        onChange={(e) => handleStudentChange(e.target.value)}
+                        className="bg-transparent text-white text-xs font-bold focus:outline-none cursor-pointer"
+                      >
+                        {students.map((st) => (
+                          <option key={st.id} value={st.id} className="bg-slate-900 text-white">
+                            {st.name} ({st.rLevel})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('teacher')}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer"
+                    >
+                      <Crown className="h-3.5 w-3.5" />
+                      <span>返回教師後台</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {activeTab === 'dashboard' && (
                 <DashboardView 
                   student={currentStudent} 
@@ -1379,7 +1590,7 @@ export default function App() {
                   residentPasswordRequired={residentPasswordRequired}
                   onOpenChangePassword={() => setIsChangePasswordOpen(true)}
                   onLockStudent={handleLockCurrentStudent}
-                  isUnlocked={unlockedStudentIds[currentStudent.id]}
+                  isUnlocked={isTeacher || unlockedStudentIds[currentStudent.id]}
                 />
               )}
 
@@ -1411,6 +1622,14 @@ export default function App() {
                   systemDateText={effectiveDateText}
                   clockMode={clockMode}
                   currentTimeText={liveTimeText}
+                />
+              )}
+
+              {activeTab === 'handbook' && (
+                <HandbookView
+                  student={currentStudent}
+                  isTeacher={isTeacher}
+                  onUpdateHandbookProgress={handleUpdateHandbookProgress}
                 />
               )}
 
